@@ -29,7 +29,7 @@ kubectl create configmap keycloak-realm \
 kubectl apply -f "${ROOT_DIR}/k8s/keycloak/deployment.yaml"
 
 echo "Waiting for Keycloak to be ready..."
-kubectl rollout status deployment/keycloak -n "${NAMESPACE}" --timeout=180s
+kubectl rollout status deployment/keycloak -n "${NAMESPACE}" --timeout=300s
 
 
 echo "=== 4. Checking Gmail SMTP Secret ==="
@@ -58,6 +58,24 @@ else
     echo "Secret 'airflow-smtp-secret' already exists."
 fi
 
+echo "=== 4b. Checking Git-Sync SSH Secret ==="
+if ! kubectl get secret airflow-ssh-secret -n "${NAMESPACE}" >/dev/null 2>&1; then
+    SSH_KEY_FILE="${HOME}/.ssh/id_ed25519"
+    if [[ ! -f "${SSH_KEY_FILE}" ]]; then
+        SSH_KEY_FILE="${HOME}/.ssh/id_rsa"
+    fi
+    if [[ -f "${SSH_KEY_FILE}" ]]; then
+        kubectl create secret generic airflow-ssh-secret \
+            --from-file=gitSshKey="${SSH_KEY_FILE}" \
+            -n "${NAMESPACE}"
+        echo "Created 'airflow-ssh-secret' from ${SSH_KEY_FILE}."
+    else
+        echo "WARNING: No SSH key found at ~/.ssh/id_ed25519 or ~/.ssh/id_rsa for git-sync."
+    fi
+else
+    echo "Secret 'airflow-ssh-secret' already exists."
+fi
+
 echo "=== 5. Deploying Airflow with Helm ==="
 helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
 helm repo update apache-airflow
@@ -67,7 +85,7 @@ helm upgrade --install airflow apache-airflow/airflow \
     --namespace "${NAMESPACE}"
 
 echo "Waiting for scheduler pod..."
-kubectl rollout status deployment/airflow-scheduler -n "${NAMESPACE}" --timeout=120s
+kubectl rollout status deployment/airflow-scheduler -n "${NAMESPACE}" --timeout=300s
 
 echo "Ensuring AD team roles exist in Airflow database..."
 kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- airflow roles create aid-finance-auth 2>/dev/null || true

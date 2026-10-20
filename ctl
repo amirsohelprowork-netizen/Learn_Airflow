@@ -42,8 +42,9 @@ case "${cmd}" in
         echo -e "Keycloak Admin:  ${YELLOW}http://localhost:8081${NC} (User: admin | Pass: admin | Realm: airflow)"
         echo -e "Break-glass:     User: breakglass | Pass: ChangeMeInSecret123!"
         echo ""
-        echo -e "${GREEN}=== Keycloak AD Group Users (Owner-Based RBAC) ===${NC}"
+        echo -e "${GREEN}=== Keycloak Users & RBAC Matrix ===${NC}"
         echo "  alice          (Admin)              -> Pass: Alice-lab-1"
+        echo "  breakglass     (Admin)              -> Pass: ChangeMeInSecret123!"
         echo "  user_finance   (aid-finance-auth)   -> Pass: Finance-lab-1   (Owns: finance_monthly_report)"
         echo "  user_marketing (aid-marketing-auth) -> Pass: Marketing-lab-1 (Owns: marketing_campaign_tracker)"
         echo "  user_logistics (aid-logistics-auth) -> Pass: Logistics-lab-1 (Owns: logistics_fleet_monitoring)"
@@ -78,6 +79,8 @@ case "${cmd}" in
 import urllib.request, urllib.parse, json
 
 creds = [
+    ("alice", "Alice-lab-1", "airflow-admins"),
+    ("breakglass", "ChangeMeInSecret123!", "airflow-admins"),
     ("user_finance", "Finance-lab-1", "aid-finance-auth"),
     ("user_marketing", "Marketing-lab-1", "aid-marketing-auth"),
     ("user_logistics", "Logistics-lab-1", "aid-logistics-auth"),

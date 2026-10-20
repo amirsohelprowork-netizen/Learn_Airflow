@@ -71,6 +71,16 @@
   ],
   "users": [
     {
+      "username": "breakglass",
+      "enabled": true,
+      "email": "alerts@example.com",
+      "firstName": "Break",
+      "lastName": "Glass",
+      "credentials": [{ "type": "password", "value": "ChangeMeInSecret123!", "temporary": false }],
+      "realmRoles": ["Admin"],
+      "groups": ["/airflow-admins"]
+    },
+    {
       "username": "alice",
       "enabled": true,
       "email": "alice@example.com",

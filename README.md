@@ -2,6 +2,8 @@
 
 Enterprise-grade Apache Airflow 3.3.2 deployment running on local Kubernetes (**KinD**) using Helm (`values.yaml`), with **Keycloak OpenID Connect (OIDC)** Single Sign-On, **Tag-Based RBAC**, and real-time failure alerts sent directly to **`alerts@example.com`**.
 
+> **Session Handover Note**: For comprehensive architectural notes, resolved issues, credentials, and full context for starting a new conversation, refer to [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
+
 ---
 
 ## Architecture Overview

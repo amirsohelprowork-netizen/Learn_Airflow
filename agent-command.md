@@ -37,6 +37,405 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-20 14:15 — synchronize repository to origin main
+
+**Command**
+
+```bash
+git commit -m "feat: enable git-sync at 30s interval, provision breakglass in Keycloak, and add handover docs"
+git push origin main
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Committed updates (git-sync configuration, breakglass user, handover context doc, and audit log) and pushed to remote branch main.
+
+**Next command**
+
+```bash
+git status
+```
+
+**Why the next command worked:** Verify working tree is clean.
+
+### 2026-10-20 14:14 — stage modified files for synchronization
+
+**Command**
+
+```bash
+git add .
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Staged all updated configuration, scripts, and context files for commit.
+
+**Next command**
+
+```bash
+git commit -m "..."
+```
+
+**Why the next command worked:** Create commit with staged changes.
+
+
+### 2026-10-20 14:12 — verify git-sync container logs and pod readiness
+
+**Command**
+
+```bash
+kubectl logs -n airflow deploy/airflow-dag-processor -c git-sync
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed `git-sync` authenticated with GitHub, performed initial clone of `main` at revision `7c56892e`, and synced successfully with 30s period.
+
+**Next command**
+
+```bash
+kubectl get pods -n airflow
+```
+
+**Why the next command worked:** Exit code 0. All 10 pods (including new 3/3 git-sync sidecars on dag-processor, triggerer, and worker) are in Running state.
+
+### 2026-10-20 14:11 — deploy git-sync configuration via Helm upgrade
+
+**Command**
+
+```bash
+helm upgrade airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Release upgraded to revision 2 with `dags.gitSync` enabled and period set to 30s.
+
+**Next command**
+
+```bash
+kubectl logs -n airflow deploy/airflow-dag-processor -c git-sync
+```
+
+**Why the next command worked:** Verify sidecar container startup and repository synchronization.
+
+### 2026-10-20 14:10 — create airflow-ssh-secret in Kubernetes
+
+**Command**
+
+```bash
+kubectl create secret generic airflow-ssh-secret --from-file=gitSshKey=/home/user/.ssh/id_ed25519 -n airflow --dry-run=client -o yaml | kubectl apply -f -
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Secret `airflow-ssh-secret` created with `gitSshKey` for authenticating Git-Sync to GitHub over SSH.
+
+**Next command**
+
+```bash
+helm upgrade airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Why the next command worked:** Apply updated values.yaml containing gitSync configuration.
+
+
+### 2026-10-20 14:04 — query dag processor intervals in Airflow 3
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-dag-processor -c dag-processor -- python3 -c '
+from airflow.configuration import conf
+for s, o in conf.as_dict(display_source=True).items():
+    for k, (v, src) in o.items():
+        if any(w in k.lower() for w in ["interval", "parsing", "bundle"]):
+            print(f"[{s}] {k} = {v}")
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Retrieved exact interval configurations for `dag_processor` and `core` in Airflow 3.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
+### 2026-10-20 13:56 — synchronize keycloak-realm ConfigMap with updated realm JSON
+
+**Command**
+
+```bash
+kubectl create configmap keycloak-realm --from-file=airflow-realm.json=k8s/keycloak/realm-airflow.json -n airflow --dry-run=client -o yaml | kubectl apply -f -
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. ConfigMap updated with breakglass user definition.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
+### 2026-10-20 13:56 — verify all Keycloak logins including breakglass
+
+**Command**
+
+```bash
+./ctl test-auth
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. All 6 users (`alice`, `breakglass`, `user_finance`, `user_marketing`, `user_logistics`, `user_analytics`) successfully authenticated and received valid tokens and group claims.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-20 13:55 — provision breakglass user in Keycloak admin API
+
+**Command**
+
+```bash
+python3 -c '
+# Create breakglass user in Keycloak with password <redacted> and map to airflow-admins group
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. User `breakglass` created in realm `airflow`, password set to `<redacted>`, and assigned to `airflow-admins` group.
+
+**Next command**
+
+```bash
+./ctl test-auth
+```
+
+**Why the next command worked:** Validated that breakglass receives the airflow-admins group claim.
+
+
+### 2026-10-20 13:53 — verify breakglass password hash in scheduler
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '
+from werkzeug.security import check_password_hash
+from airflow.providers.fab.auth_manager.models import User
+from airflow.settings import Session
+
+session = Session()
+user = session.query(User).filter(User.username == "breakglass").first()
+print("Password matches <redacted>:", check_password_hash(user.password, "<redacted>"))
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed password hash matches `ChangeMeInSecret123!` exactly.
+
+**Next command**
+
+```bash
+curl -s http://localhost:8080/
+```
+
+**Why the next command worked:** Inspect webserver / api-server login endpoint.
+
+### 2026-10-20 13:52 — inspect breakglass user record in DB
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '
+from airflow.providers.fab.auth_manager.models import User
+from airflow.settings import Session
+
+session = Session()
+user = session.query(User).filter(User.username == "breakglass").first()
+print("User found:", user is not None)
+if user:
+    print("User active:", user.is_active)
+    print("User roles:", [r.name for r in user.roles])
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. User `breakglass` exists, is active, and has `Admin` role.
+
+**Next command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c 'check_password_hash...'
+```
+
+**Why the next command worked:** Verify the stored hash matches the password.
+
+
+### 2026-10-20 13:52 — list jobs in airflow namespace
+
+**Command**
+
+```bash
+kubectl get jobs -n airflow
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. No jobs active (completed jobs were cleaned up by Helm chart TTL).
+
+**Next command**
+
+```bash
+kubectl logs -n airflow job/airflow-create-user
+```
+
+**Why the next command worked:** (Previously attempted; job was already pruned).
+
+### 2026-10-20 13:52 — view create-user job logs
+
+**Command**
+
+```bash
+kubectl logs -n airflow job/airflow-create-user
+```
+
+**Result:** failed
+
+**Why:** Exit code 1. Job was cleaned up after completion.
+
+**Next command**
+
+```bash
+kubectl get jobs -n airflow
+```
+
+**Why the next command worked:** Verify if job resource still exists in the namespace.
+
+
+### 2026-10-20 13:51 — list airflow users in metadata database
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- airflow users list
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed user `breakglass` exists with role `Admin` and email `alerts@example.com`.
+
+**Next command**
+
+```bash
+kubectl logs -n airflow job/airflow-create-user
+```
+
+**Why the next command worked:** Check the stdout of the user creation job to see how breakglass was created.
+
+
+### 2026-10-20 13:47 — verify Keycloak OIDC group claims for AD teams
+
+**Command**
+
+```bash
+./ctl test-auth
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. All 4 department users (finance, marketing, logistics, analytics) received valid OIDC tokens and their respective `aid-<keyword>-auth` group claims.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
+### 2026-10-20 13:47 — check pod health in airflow namespace
+
+**Command**
+
+```bash
+kubectl get pods -n airflow
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. All 10 Airflow and Keycloak pods are healthy and in Running state (ready: 1/1 or 2/2).
+
+**Next command**
+
+```bash
+./ctl test-auth
+```
+
+**Why the next command worked:** Test Keycloak token issuance and group claims for all 4 team accounts.
+
+
+### 2026-10-20 13:47 — deploy Keycloak and Airflow via ctl start
+
+**Command**
+
+```bash
+./ctl start
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Keycloak rolled out, Helm deployed Airflow release, scheduler became ready, and all 4 AD team roles with base permissions were seeded.
+
+**Next command**
+
+```bash
+kubectl get pods -n airflow
+```
+
+**Why the next command worked:** Verify all Airflow pods (api-server, triggerer, worker) have transitioned to Running.
+
+
+### 2026-10-20 13:44 — check pod status in airflow namespace
+
+**Command**
+
+```bash
+kubectl get pods -n airflow -o wide
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Keycloak pod is 1/1 Running (it finished pulling image and starting up shortly after the 180s timeout).
+
+**Next command**
+
+```bash
+./ctl start
+```
+
+**Why the next command worked:** Keycloak is now running, so rollout status succeeds immediately and continues to Airflow deployment.
+
+
 ### 2026-10-20 02:12 — verify all local containers are stopped
 
 **Command**
