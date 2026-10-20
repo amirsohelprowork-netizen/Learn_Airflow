@@ -37,6 +37,51 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-20 23:56 — verify airflow_local_settings loads directly from config directory
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '
+import airflow_local_settings
+print("airflow_local_settings file:", airflow_local_settings.__file__)
+print("dag_policy function:", getattr(airflow_local_settings, "dag_policy", None))
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed Airflow imported `dag_policy` directly from `/opt/airflow/config/airflow_local_settings.py` via `PYTHONPATH`.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-20 23:55 — deploy Helm release with airflowLocalSettings removed from values.yaml
+
+**Command**
+
+```bash
+helm upgrade airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Release upgraded to revision 5 with `airflowLocalSettings: ~`, eliminating all inline Python code from `values.yaml`.
+
+**Next command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '...'
+```
+
+**Why the next command worked:** Verified module import from filesystem.
+
+
 ### 2026-10-20 14:50 — verify AIRFLOW__API__SECRET_KEY uses external secret reference
 
 **Command**
