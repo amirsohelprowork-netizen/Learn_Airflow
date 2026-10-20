@@ -40,6 +40,9 @@ kubectl rollout status deployment/keycloak -n "${NAMESPACE}" --timeout=300s
 echo "=== 3b. Starting & Mapping External HashiCorp Vault ==="
 "${ROOT_DIR}/scripts/setup-vault.sh"
 
+echo "=== 3c. Starting & Mapping External S3 Storage ==="
+"${ROOT_DIR}/scripts/setup-s3.sh"
+
 
 echo "=== 4. Checking Gmail SMTP Secret ==="
 if ! kubectl get secret airflow-smtp-secret -n "${NAMESPACE}" >/dev/null 2>&1; then
@@ -143,6 +146,7 @@ echo "======================================================================"
 echo "Airflow Web UI:  http://localhost:8080"
 echo "Keycloak Admin:  http://localhost:8081  (User: admin | Pass: admin)"
 echo "HashiCorp Vault: http://localhost:8200  (Token: airflow-vault-root-token-2026)"
+echo "External S3:     http://localhost:9090  (Bucket: airflow-logs)"
 echo ""
 echo "Airflow Logins via Keycloak SSO (Owner-Based RBAC):"
 echo "  Alice (Admin)          -> User: alice          | Pass: Alice-lab-1"

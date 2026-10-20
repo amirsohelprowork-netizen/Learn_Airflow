@@ -79,6 +79,10 @@ config:
 
   logging:
     logging_level: "INFO"
+    remote_logging: "True"
+    remote_log_conn_id: "aws_default"
+    remote_base_log_folder: "s3://airflow-logs"
+    encrypt_s3_logs: "False"
 
 # --- Extra Environment Variables & Secret Injections ---
 # In Airflow 3.x, SmtpNotifier looks up the 'smtp_default' connection.
@@ -171,6 +175,8 @@ dagProcessor:
 # --- Workers (Celery) ---
 workers:
   replicas: 1
+  persistence:
+    enabled: false
   resources:
     limits:
       cpu: "1000m"
@@ -183,6 +189,8 @@ workers:
 triggerer:
   enabled: true
   replicas: 1
+  persistence:
+    enabled: false
 
 # --- Initial Break-Glass Admin User Creation ---
 createUserJob:

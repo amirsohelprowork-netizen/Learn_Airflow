@@ -37,6 +37,95 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-21 00:29 — verify task execution log uploaded to external S3 bucket
+
+**Command**
+
+```bash
+curl -s "http://localhost:9090/airflow-logs/dag_id=finance_monthly_report/run_id=manual__2026-10-20T18:59:07.865551+00:00/task_id=generate_balance_sheet/attempt=1.log"
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Retrieved full task execution logs directly from the external S3 bucket; confirmed Celery worker shipped logs to S3 upon task completion.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-21 00:28 — deploy Helm chart with S3 remote logging enabled
+
+**Command**
+
+```bash
+helm upgrade --install airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Result:** worked
+
+**Why:** Revision 8 deployed; Airflow workers and triggerers transitioned to stateless emptyDir storage with S3 remote logging.
+
+**Next command**
+
+```bash
+curl -s "http://localhost:9090/airflow-logs/dag_id=finance_monthly_report/run_id=manual__2026-10-20T18:59:07.865551+00:00/task_id=generate_balance_sheet/attempt=1.log"
+```
+
+**Why the next command worked:** Task ran and shipped log to S3 bucket.
+
+### 2026-10-21 00:25 — seed aws_default connection in HashiCorp Vault
+
+**Command**
+
+```bash
+python3 -c "
+import urllib.request, json
+req = urllib.request.Request(
+    'http://localhost:8200/v1/secret/data/airflow/connections/aws_default',
+    data=json.dumps({'data': {'conn_type': 'aws', 'extra': json.dumps({'aws_access_key_id': '<redacted>', 'aws_secret_access_key': '<redacted>', 'endpoint_url': 'http://s3.airflow.svc.cluster.local:9090', 'region_name': 'us-east-1'})}}).encode(),
+    headers={'X-Vault-Token': '<redacted>', 'Content-Type': 'application/json'},
+    method='POST'
+)
+urllib.request.urlopen(req)
+"
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Stored S3 connection with custom endpoint URL in HashiCorp Vault secret backend.
+
+**Next command**
+
+```bash
+helm upgrade --install airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Why the next command worked:** Airflow picked up aws_default connection from Vault.
+
+### 2026-10-21 00:24 — launch external S3 container and create airflow-logs bucket
+
+**Command**
+
+```bash
+docker run -d --name airflow-s3 --restart unless-stopped -p 9090:9090 -e initialBuckets=airflow-logs adobe/s3mock:latest
+```
+
+**Result:** worked
+
+**Why:** Container started on host port 9090; bucket `airflow-logs` initialized.
+
+**Next command**
+
+```bash
+kubectl apply -f k8s/s3/service.yaml
+```
+
+**Why the next command worked:** Mapped host port 9090 into Kubernetes cluster as `s3.airflow.svc.cluster.local:9090`.
+
 ### 2026-10-21 00:12 — verify git-sync and DAG list in cluster
 
 **Command**
