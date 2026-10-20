@@ -38,9 +38,9 @@ securityContexts:
 # --- Executor ---
 executor: "CeleryExecutor"
 
-# --- Static Secret Keys (ensures all pods share identical JWT/log signing keys) ---
-apiSecretKey: "2SL0kSlBxSYcpJnwzhBCWFlGf0mxEao2"
-webserverSecretKey: "2SL0kSlBxSYcpJnwzhBCWFlGf0mxEao2"
+# --- Secret Keys (managed via external HashiCorp Vault, referenced via Secret) ---
+apiSecretKeySecretName: "airflow-api-secret"
+webserverSecretKeySecretName: "airflow-api-secret"
 
 # --- Airflow Configuration (airflow.cfg overrides) ---
 config:

@@ -37,6 +37,92 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-20 14:50 — verify AIRFLOW__API__SECRET_KEY uses external secret reference
+
+**Command**
+
+```bash
+kubectl get pod -n airflow -l component=api-server -o jsonpath='{.items[0].spec.containers[0].env[?(@.name=="AIRFLOW__API__SECRET_KEY")]}'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed `AIRFLOW__API__SECRET_KEY` now mounts directly from `airflow-api-secret` (managed via Vault), with zero plaintext keys in `values.yaml`.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-20 14:49 — apply Helm upgrade with apiSecretKeySecretName
+
+**Command**
+
+```bash
+helm upgrade airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Release upgraded to revision 4 referencing `airflow-api-secret` instead of hardcoded strings.
+
+**Next command**
+
+```bash
+kubectl get pods -n airflow
+```
+
+**Why the next command worked:** Verified rolling update of scheduler, api-server, triggerer, and worker pods.
+
+### 2026-10-20 14:48 — synchronize airflow-api-secret from Vault to Kubernetes
+
+**Command**
+
+```bash
+./scripts/setup-vault.sh
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Successfully extracted `api/secret_key` and `webserver/secret_key` from Vault and created `airflow-api-secret` in Kubernetes.
+
+**Next command**
+
+```bash
+helm upgrade airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Why the next command worked:** Apply updated values.yaml with Secret references.
+
+
+### 2026-10-20 14:38 — test VaultBackend config resolution for api/secret_key
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '
+from airflow.providers.hashicorp.secrets.vault import VaultBackend
+vb = VaultBackend(url="http://vault.airflow.svc.cluster.local:8200", token="<redacted>", config_path="airflow/config")
+print("api/secret_key from Vault:", vb.get_config("api/secret_key"))
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed `VaultBackend` correctly fetches `2SL0kSlBxSYcpJnwzhBCWFlGf0mxEao2` for `api/secret_key` from Vault.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
 ### 2026-10-20 14:27 — verify Airflow dynamic secrets retrieval from external Vault
 
 **Command**

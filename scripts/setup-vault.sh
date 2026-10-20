@@ -107,6 +107,26 @@ write_secret('airflow/connections/smtp_default', {
 })
 "
 
+echo -e "${CYAN}=== 4. Syncing Airflow Secret Keys from Vault to Kubernetes ===${NC}"
+if kubectl cluster-info >/dev/null 2>&1; then
+    API_KEY=$(python3 -c "
+import urllib.request, json
+req = urllib.request.Request('${VAULT_ADDR}/v1/secret/data/airflow/config/api/secret_key', headers={'X-Vault-Token': '${VAULT_TOKEN}'})
+print(json.loads(urllib.request.urlopen(req).read().decode())['data']['data']['value'])
+")
+    WEBSERVER_KEY=$(python3 -c "
+import urllib.request, json
+req = urllib.request.Request('${VAULT_ADDR}/v1/secret/data/airflow/config/webserver/secret_key', headers={'X-Vault-Token': '${VAULT_TOKEN}'})
+print(json.loads(urllib.request.urlopen(req).read().decode())['data']['data']['value'])
+")
+
+    kubectl create secret generic airflow-api-secret \
+        --from-literal=api-secret-key="${API_KEY}" \
+        --from-literal=webserver-secret-key="${WEBSERVER_KEY}" \
+        -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+    echo -e "${GREEN}Kubernetes secret 'airflow-api-secret' synced from HashiCorp Vault.${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}======================================================================${NC}"
 echo -e "${GREEN}HashiCorp Vault is running outside the cluster!${NC}"
