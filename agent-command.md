@@ -37,6 +37,50 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-21 00:41 — verify task execution log stored in MinIO airflow-logs bucket
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c "
+import boto3
+s3 = boto3.client('s3', endpoint_url='http://s3.airflow.svc.cluster.local:9000', aws_access_key_id='<redacted>', aws_secret_access_key='<redacted>')
+print(s3.list_objects_v2(Bucket='airflow-logs')['Contents'])
+"
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed task execution log `dag_id=analytics_daily_etl/run_id=.../attempt=1.log` (3941 bytes) is present in MinIO bucket.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-21 00:39 — launch external MinIO container with MinIO Console
+
+**Command**
+
+```bash
+docker run -d --name airflow-minio --user root --restart unless-stopped -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=<redacted> -e MINIO_ROOT_PASSWORD=<redacted> cleanstart/minio:latest server /data --console-address ":9001"
+```
+
+**Result:** worked
+
+**Why:** Launched official GNU AGPLv3 MinIO server with S3 API on port 9000 and MinIO Web Console UI on port 9001.
+
+**Next command**
+
+```bash
+curl -i http://localhost:9001/
+```
+
+**Why the next command worked:** HTTP 200 returned with MinIO Console HTML.
+
 ### 2026-10-21 00:32 — launch S3 Browser Web UI dashboard
 
 **Command**

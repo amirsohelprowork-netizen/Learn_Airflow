@@ -108,9 +108,9 @@ write_secret('airflow/connections/smtp_default', {
 write_secret('airflow/connections/aws_default', {
     'conn_type': 'aws',
     'extra': json.dumps({
-        'aws_access_key_id': 'mock_access_key',
-        'aws_secret_access_key': 'mock_secret_key',
-        'endpoint_url': 'http://s3.airflow.svc.cluster.local:9090',
+        'aws_access_key_id': 'minioadmin',
+        'aws_secret_access_key': 'minioadmin',
+        'endpoint_url': 'http://s3.airflow.svc.cluster.local:9000',
         'region_name': 'us-east-1'
     })
 })
