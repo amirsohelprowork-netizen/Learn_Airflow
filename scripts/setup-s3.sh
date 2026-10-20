@@ -52,3 +52,33 @@ if kubectl cluster-info >/dev/null 2>&1; then
     kubectl apply -f "${ROOT_DIR}/k8s/s3/service.yaml"
     echo -e "${GREEN}S3 service & endpoints mapped in namespace '${NAMESPACE}'.${NC}"
 fi
+
+echo -e "${CYAN}=== 3. Checking S3 Browser Web UI Container ===${NC}"
+UI_CONTAINER="airflow-s3-ui"
+UI_PORT="9001"
+DOCKER_GW=$(ip -4 addr show docker0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "172.17.0.1")
+
+if ! docker ps --filter "name=^/${UI_CONTAINER}$" --format '{{.Names}}' | grep -qx "${UI_CONTAINER}"; then
+    if docker ps -a --filter "name=^/${UI_CONTAINER}$" --format '{{.Names}}' | grep -qx "${UI_CONTAINER}"; then
+        echo "Starting existing '${UI_CONTAINER}' container..."
+        docker start "${UI_CONTAINER}"
+    else
+        echo "Launching S3 Browser Web UI on port ${UI_PORT}..."
+        docker run -d \
+            --name "${UI_CONTAINER}" \
+            --restart unless-stopped \
+            -p "${UI_PORT}:3000" \
+            -e S3_ENDPOINT_URL="http://${DOCKER_GW}:${S3_PORT}" \
+            -e S3_BUCKET_NAME="airflow-logs" \
+            -e S3_ACCESS_KEY_ID="mock_access_key" \
+            -e S3_SECRET_ACCESS_KEY="mock_secret_key" \
+            -e S3_REGION="us-east-1" \
+            -e S3_FORCE_PATH_STYLE="true" \
+            lstsystems/s3n-browser:latest
+    fi
+else
+    echo "S3 Browser Web UI '${UI_CONTAINER}' is already running."
+fi
+
+echo -e "${GREEN}S3 Browser Web UI is available at: http://localhost:${UI_PORT}${NC}"
+

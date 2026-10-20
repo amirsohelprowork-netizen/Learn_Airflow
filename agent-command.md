@@ -37,6 +37,26 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-21 00:32 — launch S3 Browser Web UI dashboard
+
+**Command**
+
+```bash
+docker run -d --name airflow-s3-ui --restart unless-stopped -p 9001:3000 -e S3_ENDPOINT_URL=http://172.17.0.1:9090 -e S3_BUCKET_NAME=airflow-logs -e S3_ACCESS_KEY_ID=<redacted> -e S3_SECRET_ACCESS_KEY=<redacted> -e S3_REGION=us-east-1 -e S3_FORCE_PATH_STYLE=true lstsystems/s3n-browser:latest
+```
+
+**Result:** worked
+
+**Why:** S3 Web Browser UI container launched and listening on http://localhost:9001 connected to external S3 storage.
+
+**Next command**
+
+```bash
+curl -i http://localhost:9001/
+```
+
+**Why the next command worked:** HTTP 200 returned; S3 Browser Web UI rendered successfully.
+
 ### 2026-10-21 00:29 — verify task execution log uploaded to external S3 bucket
 
 **Command**
