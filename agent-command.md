@@ -37,6 +37,46 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-21 00:52 — inspect real-time pod and container resource usage
+
+**Command**
+
+```bash
+kubectl top pods -n airflow --containers
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Retrieved exact CPU (millicores) and memory (MiB) utilization for every container across all 10 pods.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-21 00:52 — install and patch metrics-server for KinD cluster
+
+**Command**
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml && kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+```
+
+**Result:** worked
+
+**Why:** Metrics API became available on the KinD cluster enabling `kubectl top`.
+
+**Next command**
+
+```bash
+kubectl top pods -n airflow --containers
+```
+
+**Why the next command worked:** Queried live resource usage metrics.
+
 ### 2026-10-21 00:41 — verify task execution log stored in MinIO airflow-logs bucket
 
 **Command**
