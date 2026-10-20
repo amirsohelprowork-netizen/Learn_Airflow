@@ -1,0 +1,16 @@
+# Platform packages for the Airflow 3.3.2 lab image.
+# Versions are pinned by constraints/constraints-3.12.txt.
+# Use that file only for this install. Extra libraries that are not part of
+# the Airflow release belong in a later pip install that pins
+# apache-airflow==3.3.2 and does not reuse the constraints file.
+
+apache-airflow==3.3.2
+apache-airflow-providers-celery
+apache-airflow-providers-common-sql
+apache-airflow-providers-fab
+apache-airflow-providers-postgres
+apache-airflow-providers-redis
+apache-airflow-providers-smtp
+apache-airflow-providers-standard
+python-ldap
+authlib

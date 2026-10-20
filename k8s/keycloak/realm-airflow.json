@@ -1,0 +1,124 @@
+{
+  "realm": "airflow",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "Admin", "description": "Airflow Admin Role" },
+      { "name": "aid-finance-auth", "description": "Finance Team Role" },
+      { "name": "aid-marketing-auth", "description": "Marketing Team Role" },
+      { "name": "aid-logistics-auth", "description": "Logistics Team Role" },
+      { "name": "aid-analytics-auth", "description": "Analytics Team Role" }
+    ]
+  },
+  "groups": [
+    { "name": "aid-finance-auth", "path": "/aid-finance-auth" },
+    { "name": "aid-marketing-auth", "path": "/aid-marketing-auth" },
+    { "name": "aid-logistics-auth", "path": "/aid-logistics-auth" },
+    { "name": "aid-analytics-auth", "path": "/aid-analytics-auth" },
+    { "name": "airflow-admins", "path": "/airflow-admins" }
+  ],
+  "clients": [
+    {
+      "clientId": "airflow",
+      "name": "Airflow Webserver",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "airflow-client-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "http://localhost:8080/*",
+        "http://localhost:8080/oauth-authorized/keycloak"
+      ],
+      "webOrigins": ["*"],
+      "protocolMappers": [
+        {
+          "name": "group-membership",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-to-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.com",
+      "firstName": "Alice",
+      "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "Alice-lab-1", "temporary": false }],
+      "realmRoles": ["Admin"],
+      "groups": ["/airflow-admins"]
+    },
+    {
+      "username": "user_finance",
+      "enabled": true,
+      "email": "user_finance@example.com",
+      "firstName": "Finance",
+      "lastName": "Owner",
+      "credentials": [{ "type": "password", "value": "Finance-lab-1", "temporary": false }],
+      "realmRoles": ["aid-finance-auth"],
+      "groups": ["/aid-finance-auth"]
+    },
+    {
+      "username": "user_marketing",
+      "enabled": true,
+      "email": "user_marketing@example.com",
+      "firstName": "Marketing",
+      "lastName": "Owner",
+      "credentials": [{ "type": "password", "value": "Marketing-lab-1", "temporary": false }],
+      "realmRoles": ["aid-marketing-auth"],
+      "groups": ["/aid-marketing-auth"]
+    },
+    {
+      "username": "user_logistics",
+      "enabled": true,
+      "email": "user_logistics@example.com",
+      "firstName": "Logistics",
+      "lastName": "Owner",
+      "credentials": [{ "type": "password", "value": "Logistics-lab-1", "temporary": false }],
+      "realmRoles": ["aid-logistics-auth"],
+      "groups": ["/aid-logistics-auth"]
+    },
+    {
+      "username": "user_analytics",
+      "enabled": true,
+      "email": "user_analytics@example.com",
+      "firstName": "Analytics",
+      "lastName": "Owner",
+      "credentials": [{ "type": "password", "value": "Analytics-lab-1", "temporary": false }],
+      "realmRoles": ["aid-analytics-auth"],
+      "groups": ["/aid-analytics-auth"]
+    }
+  ]
+}

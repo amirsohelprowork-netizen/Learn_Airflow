@@ -1,0 +1,9 @@
+.git
+.env
+logs
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+agent-command.md
+README.md
+.cursor

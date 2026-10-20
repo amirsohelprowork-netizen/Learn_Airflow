@@ -1,0 +1,19 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: airflow-local
+nodes:
+- role: control-plane
+  extraPortMappings:
+  # Map host port 8080 to NodePort 30080 for Airflow Web UI
+  - containerPort: 30080
+    hostPort: 8080
+    protocol: TCP
+  # Map host port 5555 to NodePort 30555 for Flower UI
+  - containerPort: 30555
+    hostPort: 5555
+    protocol: TCP
+  # Map host port 8081 to NodePort 30081 for Keycloak
+  - containerPort: 30081
+    hostPort: 8081
+    protocol: TCP
+

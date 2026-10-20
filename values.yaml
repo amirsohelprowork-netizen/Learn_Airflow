@@ -1,0 +1,277 @@
+###############################################################################
+# Apache Airflow Helm Chart Values for Local Kubernetes (KinD / Minikube)
+# Chart: apache-airflow/airflow
+# Failure Notification: Gmail (alerts@example.com)
+###############################################################################
+
+# --- Global & Image Configuration ---
+airflowVersion: "3.2.2"
+defaultAirflowRepository: "learn-airflow"
+defaultAirflowTag: "3.3.2-python3.12"
+
+images:
+  airflow:
+    # Uses the local Docker image built on your machine:
+    # Loaded into KinD with: kind load docker-image learn-airflow:3.3.2-python3.12 --name airflow-local
+    repository: "learn-airflow"
+    tag: "3.3.2-python3.12"
+    pullPolicy: "IfNotPresent"
+
+# --- Security Context for Standard Kubernetes ---
+uid: 50000
+gid: 0
+
+securityContexts:
+  pod:
+    runAsNonRoot: true
+    runAsUser: 50000
+    fsGroup: 0
+  containers:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    seccompProfile:
+      type: RuntimeDefault
+
+# --- Executor ---
+executor: "CeleryExecutor"
+
+# --- Static Secret Keys (ensures all pods share identical JWT/log signing keys) ---
+apiSecretKey: "2SL0kSlBxSYcpJnwzhBCWFlGf0mxEao2"
+webserverSecretKey: "2SL0kSlBxSYcpJnwzhBCWFlGf0mxEao2"
+
+# --- Airflow Configuration (airflow.cfg overrides) ---
+config:
+  core:
+    dags_are_paused_at_creation: "True"
+    load_examples: "False"
+    auth_manager: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
+    colored_console_log: "True"
+
+  api:
+    auth_backends: "airflow.api.auth.backend.session"
+
+  # Gmail failure notification settings
+  email:
+    email_backend: "airflow.utils.email.send_email_smtp"
+    from_email: "Airflow Alert <alerts@example.com>"
+    subject_template: "/opt/airflow/config/email/subject.txt"
+    html_content_template: "/opt/airflow/config/email/content.html"
+    default_email_on_failure: "True"
+    default_email_on_retry: "True"
+
+  smtp:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_starttls: "True"
+    smtp_ssl: "False"
+    smtp_user: "alerts@example.com"
+    smtp_mail_from: "alerts@example.com"
+    smtp_password_secret_name: "airflow-smtp-secret"
+    smtp_password_secret_key: "password"
+
+  logging:
+    logging_level: "INFO"
+
+# --- Extra Environment Variables & Secret Injections ---
+# In Airflow 3.x, SmtpNotifier looks up the 'smtp_default' connection.
+# We inject AIRFLOW_CONN_SMTP_DEFAULT using the Gmail credentials.
+# Note: '@' in the email username must be URL-encoded as '%40'.
+extraEnv: |
+  - name: PYTHONPATH
+    value: "/opt/airflow/config"
+  - name: GMAIL_APP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: airflow-smtp-secret
+        key: password
+        optional: true
+  - name: AIRFLOW_CONN_SMTP_DEFAULT
+    value: "smtp://alerts%40example.com:$(GMAIL_APP_PASSWORD)@smtp.gmail.com:587?from_email=alerts%40example.com&disable_ssl=1&disable_tls="
+  - name: AIRFLOW_ALERT_EMAIL
+    value: "alerts@example.com"
+  - name: KEYCLOAK_INTERNAL_URL
+    value: "http://keycloak.airflow.svc.cluster.local:8080"
+  - name: KEYCLOAK_EXTERNAL_URL
+    value: "http://localhost:8081"
+
+
+
+# --- Central Cluster Policy for Dynamic Keyword/Owner-Based RBAC ---
+airflowLocalSettings: |
+  import logging
+
+  log = logging.getLogger(__name__)
+
+  def dag_policy(dag) -> None:
+      """Dynamically applies RBAC based on DAG owner keyword.
+
+      Pattern: aid-<keyword>-auth
+      E.g. If dag has owner="finance", the AD group 'aid-finance-auth' gets full access.
+      """
+      if getattr(dag, "access_control", None) is None:
+          dag.access_control = {}
+
+      owner = getattr(dag, "default_args", {}).get("owner", getattr(dag, "owner", ""))
+      tags = set(getattr(dag, "tags", []) or [])
+
+      if owner:
+          target_role = f"aid-{owner.strip().lower()}-auth"
+          dag.access_control[target_role] = {"can_read", "can_edit", "can_delete"}
+          log.info("Applied dynamic RBAC policy: role '%s' granted full control over DAG '%s' (owner: '%s')", target_role, dag.dag_id, owner)
+
+      for tag in tags:
+          tag_lower = tag.strip().lower()
+          if tag_lower.startswith("aid-") and tag_lower.endswith("-auth"):
+              dag.access_control[tag_lower] = {"can_read", "can_edit", "can_delete"}
+          elif tag_lower in ["finance", "marketing", "logistics", "analytics"]:
+              dag.access_control[f"aid-{tag_lower}-auth"] = {"can_read", "can_edit", "can_delete"}
+
+# --- Webserver & Local Access ---
+webserver:
+  replicas: 1
+  service:
+    # NodePort 30080 maps to host port 8080 via kind-cluster.yaml
+    type: NodePort
+    ports:
+      - name: airflow-ui
+        port: 8080
+        nodePort: 30080
+
+  # Inline FAB Keycloak OIDC Authentication & RBAC
+  webserverConfig: |
+    import os
+    from flask_appbuilder.security.manager import AUTH_OAUTH
+
+    AUTH_TYPE = AUTH_OAUTH
+    AUTH_USER_REGISTRATION = True
+    AUTH_USER_REGISTRATION_ROLE = "Public"
+    AUTH_ROLES_SYNC_AT_LOGIN = True
+    PERMANENT_SESSION_LIFETIME = 1800
+
+    KEYCLOAK_INTERNAL_URL = os.environ.get("KEYCLOAK_INTERNAL_URL", "http://keycloak.airflow.svc.cluster.local:8080")
+
+    OAUTH_PROVIDERS = [
+        {
+            "name": "keycloak",
+            "icon": "fa-key",
+            "token_key": "access_token",
+            "remote_app": {
+                "client_id": "airflow",
+                "client_secret": "airflow-client-secret",
+                "server_metadata_url": f"{KEYCLOAK_INTERNAL_URL}/realms/airflow/.well-known/openid-configuration",
+                "api_base_url": f"{KEYCLOAK_INTERNAL_URL}/realms/airflow/protocol/",
+                "client_kwargs": {
+                    "scope": "openid email profile",
+                },
+            },
+        }
+    ]
+
+    # Map Keycloak realm roles and group names directly to Airflow roles
+    AUTH_ROLES_MAPPING = {
+        "Admin": ["Admin"],
+        "airflow-admins": ["Admin"],
+        "aid-finance-auth": ["aid-finance-auth"],
+        "aid-marketing-auth": ["aid-marketing-auth"],
+        "aid-logistics-auth": ["aid-logistics-auth"],
+        "aid-analytics-auth": ["aid-analytics-auth"],
+    }
+
+
+# Local KinD setup uses direct NodePort / port-forward, so Ingress is disabled
+ingress:
+  web:
+    enabled: false
+
+# --- API Server (Airflow 3.x UI & API) ---
+apiServer:
+  enabled: true
+  replicas: 1
+  service:
+    type: NodePort
+    ports:
+      - name: api-server
+        port: 8080
+        nodePort: 30080
+  extraVolumes:
+    - name: webserver-config
+      configMap:
+        name: airflow-webserver-config
+        defaultMode: 0644
+  extraVolumeMounts:
+    - name: webserver-config
+      mountPath: /opt/airflow/webserver_config.py
+      subPath: webserver_config.py
+      readOnly: true
+
+# --- Scheduler ---
+scheduler:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+
+# --- DAG Processor ---
+dagProcessor:
+  enabled: true
+  replicas: 1
+
+# --- Workers (Celery) ---
+workers:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+
+# --- Triggerer ---
+triggerer:
+  enabled: true
+  replicas: 1
+
+# --- Initial Break-Glass Admin User Creation ---
+createUserJob:
+  enabled: true
+  defaultUser:
+    role: Admin
+    username: breakglass
+    email: alerts@example.com
+    firstName: Break
+    lastName: Glass
+    password: "ChangeMeInSecret123!"
+
+# --- DAGs Deployment ---
+# Baked directly into the Docker image (learn-airflow:3.3.2-python3.12).
+# No distributed NFS volume required for local execution.
+dags:
+  persistence:
+    enabled: false
+
+# --- Logs Persistence ---
+# EmptyDir or standard local PVC in KinD
+logs:
+  persistence:
+    enabled: false
+
+# --- Local Metadata Database (Postgres) & Celery Broker (Redis) ---
+postgresql:
+  enabled: true
+
+redis:
+  enabled: true
+  persistence:
+    enabled: false
+
+# --- Flower (Celery Monitoring) ---
+flower:
+  enabled: true

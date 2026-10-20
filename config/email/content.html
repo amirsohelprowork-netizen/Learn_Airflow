@@ -1,0 +1,4 @@
+<p>Task <strong>{{ ti.task_id }}</strong> in DAG <strong>{{ ti.dag_id }}</strong> is {{ ti.state }}.</p>
+<p>Attempt {{ ti.try_number }}.</p>
+{% if ti.log_url %}<p><a href="{{ ti.log_url }}">Open the task log</a></p>{% endif %}
+<pre>{{ exception | default("", true) }}</pre>
