@@ -37,6 +37,46 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-21 00:10 — test Keycloak OIDC authentication after webserver_config refactor
+
+**Command**
+
+```bash
+./ctl test-auth
+```
+
+**Result:** worked
+
+**Why:** All 6 Keycloak user logins succeeded and mapped to their respective Airflow AD groups/roles.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-21 00:09 — check Airflow pods status after removing Python from YAML
+
+**Command**
+
+```bash
+kubectl get pods -n airflow
+```
+
+**Result:** worked
+
+**Why:** All pods including `airflow-api-server`, `airflow-scheduler`, `airflow-worker`, and `airflow-dag-processor` are Running and ready.
+
+**Next command**
+
+```bash
+./ctl test-auth
+```
+
+**Why the next command worked:** Authenticated all test users against Keycloak SSO.
+
 ### 2026-10-20 23:56 — verify airflow_local_settings loads directly from config directory
 
 **Command**

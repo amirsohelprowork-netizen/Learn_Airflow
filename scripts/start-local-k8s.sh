@@ -26,6 +26,12 @@ kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply
 kubectl create configmap keycloak-realm \
     --from-file=airflow-realm.json="${ROOT_DIR}/k8s/keycloak/realm-airflow.json" \
     -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap custom-webserver-config \
+    --from-file=webserver_config.py="${ROOT_DIR}/config/webserver_config.py" \
+    -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap airflow-webserver-config \
+    --from-file=webserver_config.py="${ROOT_DIR}/config/webserver_config.py" \
+    -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${ROOT_DIR}/k8s/keycloak/deployment.yaml"
 
 echo "Waiting for Keycloak to be ready..."
