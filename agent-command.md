@@ -37,6 +37,26 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-21 00:12 — verify git-sync and DAG list in cluster
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- airflow dags list -o table
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. All 5 DAGs parsed cleanly with zero import errors; git-sync is continuously syncing repository commits.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
 ### 2026-10-21 00:11 — commit and push webserverConfig externalization
 
 **Command**
