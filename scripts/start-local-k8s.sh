@@ -31,6 +31,9 @@ kubectl apply -f "${ROOT_DIR}/k8s/keycloak/deployment.yaml"
 echo "Waiting for Keycloak to be ready..."
 kubectl rollout status deployment/keycloak -n "${NAMESPACE}" --timeout=300s
 
+echo "=== 3b. Starting & Mapping External HashiCorp Vault ==="
+"${ROOT_DIR}/scripts/setup-vault.sh"
+
 
 echo "=== 4. Checking Gmail SMTP Secret ==="
 if ! kubectl get secret airflow-smtp-secret -n "${NAMESPACE}" >/dev/null 2>&1; then
@@ -133,6 +136,7 @@ echo "Airflow & Keycloak are deploying to local Kubernetes (KinD)!"
 echo "======================================================================"
 echo "Airflow Web UI:  http://localhost:8080"
 echo "Keycloak Admin:  http://localhost:8081  (User: admin | Pass: admin)"
+echo "HashiCorp Vault: http://localhost:8200  (Token: airflow-vault-root-token-2026)"
 echo ""
 echo "Airflow Logins via Keycloak SSO (Owner-Based RBAC):"
 echo "  Alice (Admin)          -> User: alice          | Pass: Alice-lab-1"

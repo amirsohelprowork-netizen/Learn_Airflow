@@ -14,3 +14,4 @@ apache-airflow-providers-smtp
 apache-airflow-providers-standard
 python-ldap
 authlib
+apache-airflow-providers-hashicorp

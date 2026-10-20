@@ -37,6 +37,138 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-20 14:27 — verify Airflow dynamic secrets retrieval from external Vault
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '
+from airflow.models import Variable
+from airflow.hooks.base import BaseHook
+print("Variable alert_recipient:", Variable.get("alert_recipient"))
+print("Connection postgres_default:", BaseHook.get_connection("postgres_default"))
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Airflow `VaultBackend` successfully retrieved both the variable and connection directly from HashiCorp Vault outside the cluster on demand.
+
+**Next command**
+
+```bash
+./ctl vault status
+```
+
+**Why the next command worked:** Verify Vault container health and CLI output.
+
+### 2026-10-20 14:26 — deploy VaultBackend configuration via Helm upgrade
+
+**Command**
+
+```bash
+helm upgrade airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Release upgraded to revision 3 with `config.secrets.backend` configured to `VaultBackend`.
+
+**Next command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '...'
+```
+
+**Why the next command worked:** Validate dynamic secret retrieval from Vault inside scheduler.
+
+### 2026-10-20 14:25 — rebuild image with hashicorp provider and load into KinD
+
+**Command**
+
+```bash
+docker build -t learn-airflow:3.3.2-python3.12 . && kind load docker-image learn-airflow:3.3.2-python3.12 --name airflow-local
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Image built containing `apache-airflow-providers-hashicorp==4.8.1` and loaded into the KinD cluster node.
+
+**Next command**
+
+```bash
+helm upgrade airflow apache-airflow/airflow -f values.yaml --namespace airflow
+```
+
+**Why the next command worked:** Apply VaultBackend configuration.
+
+### 2026-10-20 14:24 — launch external HashiCorp Vault container and seed secrets
+
+**Command**
+
+```bash
+./scripts/setup-vault.sh
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Vault container `airflow-vault` started on port 8200 with root token `<redacted>`, mapped to `vault.airflow.svc.cluster.local:8200` in K8s, and seeded with variables, connections, and config keys.
+
+**Next command**
+
+```bash
+docker build -t learn-airflow:3.3.2-python3.12 .
+```
+
+**Why the next command worked:** Build image with hashicorp provider.
+
+
+### 2026-10-20 14:18 — inspect Airflow metadata DB for import errors
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '
+from airflow.models.errors import ParseImportError
+from airflow.settings import Session
+session = Session()
+print("Number of import errors in DB:", session.query(ParseImportError).count())
+'
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Output `Number of import errors in DB: 0`. The database has zero active import errors; the file was completely pruned from disk.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-20 14:17 — verify /opt/airflow/dags directory contents in pod
+
+**Command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-dag-processor -c dag-processor -- ls -la /opt/airflow/dags/repo/dags/
+```
+
+**Result:** worked
+
+**Why:** Exit code 0. Confirmed `team_a` folder is no longer present in the synchronized repository inside the pod.
+
+**Next command**
+
+```bash
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- python3 -c '...ParseImportError...'
+```
+
+**Why the next command worked:** Verify if the database cleared the error record.
+
+
 ### 2026-10-20 14:15 — verify automatic git-sync detection of commit 818579b
 
 **Command**

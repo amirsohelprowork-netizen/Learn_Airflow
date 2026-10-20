@@ -27,6 +27,7 @@ usage() {
     echo "  test-alert     Trigger the failure DAG to verify Gmail failure alerts"
     echo "  test-auth      Verify Keycloak OIDC token issuance and user claims"
     echo "  logs [pod]     Tail logs for worker, scheduler, or keycloak (default: worker)"
+    echo "  vault [action] Manage external HashiCorp Vault (status, ui, start, seed)"
     echo "  help           Display this help screen"
 }
 
@@ -40,6 +41,7 @@ case "${cmd}" in
         echo -e "${GREEN}=== Access Endpoints ===${NC}"
         echo -e "Airflow Web UI:  ${YELLOW}http://localhost:8080${NC} (Click 'Sign in with keycloak')"
         echo -e "Keycloak Admin:  ${YELLOW}http://localhost:8081${NC} (User: admin | Pass: admin | Realm: airflow)"
+        echo -e "HashiCorp Vault: ${YELLOW}http://localhost:8200${NC} (Token: airflow-vault-root-token-2026)"
         echo -e "Break-glass:     User: breakglass | Pass: ChangeMeInSecret123!"
         echo ""
         echo -e "${GREEN}=== Keycloak Users & RBAC Matrix ===${NC}"
@@ -120,6 +122,29 @@ for username, password, expected_group in creds:
                 ;;
             *)
                 echo -e "${RED}Unknown logs target: ${target}. Choose: worker, scheduler, keycloak${NC}"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    vault)
+        action="${2:-status}"
+        case "${action}" in
+            start|seed)
+                "${ROOT_DIR}/scripts/setup-vault.sh"
+                ;;
+            status)
+                echo -e "${CYAN}=== External HashiCorp Vault Status ===${NC}"
+                docker ps --filter "name=airflow-vault"
+                echo ""
+                curl -s http://localhost:8200/v1/sys/health | python3 -m json.tool 2>/dev/null || echo "Vault not reachable"
+                ;;
+            ui)
+                echo -e "${GREEN}HashiCorp Vault Web UI: ${YELLOW}http://localhost:8200${NC}"
+                echo -e "Root Token:              ${YELLOW}airflow-vault-root-token-2026${NC}"
+                ;;
+            *)
+                echo -e "${RED}Unknown vault action: ${action}. Use: status, ui, start, seed${NC}"
                 exit 1
                 ;;
         esac

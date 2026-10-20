@@ -57,6 +57,7 @@ All core services run within the local KinD cluster (`airflow-local`) under the 
 | :--- | :--- | :--- | :--- |
 | **Airflow Web UI** | React Frontend & API Server | [http://localhost:8080](http://localhost:8080) | `airflow-webserver:8080` / `airflow-api-server:8080` |
 | **Keycloak IAM** | Identity Provider / SSO | [http://localhost:8081](http://localhost:8081) | `keycloak.airflow.svc.cluster.local:8080` |
+| **HashiCorp Vault** | External Secrets Manager | [http://localhost:8200](http://localhost:8200) | `vault.airflow.svc.cluster.local:8200` |
 | **PostgreSQL 16** | Metadata DB | Cluster Internal | `airflow-postgresql.airflow.svc.cluster.local:5432` |
 | **Redis 7.2** | Celery Broker | Cluster Internal | `airflow-redis.airflow.svc.cluster.local:6379` |
 | **Gmail Alerts** | Outbound Failure SMTP | Outbound | `smtp.gmail.com:587` (STARTTLS) |

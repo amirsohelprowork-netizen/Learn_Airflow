@@ -50,6 +50,11 @@ config:
     auth_manager: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
     colored_console_log: "True"
 
+  secrets:
+    backend: "airflow.providers.hashicorp.secrets.vault.VaultBackend"
+    backend_kwargs: '{"url": "http://vault.airflow.svc.cluster.local:8200", "token": "airflow-vault-root-token-2026", "mount_point": "secret", "kv_engine_version": 2, "variables_path": "airflow/variables", "connections_path": "airflow/connections", "config_path": "airflow/config"}'
+
+
   api:
     auth_backends: "airflow.api.auth.backend.session"
 
