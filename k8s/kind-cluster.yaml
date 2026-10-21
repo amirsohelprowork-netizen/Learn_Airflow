@@ -3,12 +3,26 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: airflow-local
 nodes:
 - role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
   extraPortMappings:
-  # Map host port 8080 to NodePort 30080 for Airflow Web UI
+  # Ingress HTTP
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  # Ingress HTTPS (TLS)
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+  # Map host port 8080 to NodePort 30080 for Airflow Web UI (legacy/fallback)
   - containerPort: 30080
     hostPort: 8080
     protocol: TCP
-  # Map host port 5555 to NodePort 30555 for Flower UI
+  # Map host port 5555 to NodePort 30555 for Flower UI (legacy/fallback)
   - containerPort: 30555
     hostPort: 5555
     protocol: TCP

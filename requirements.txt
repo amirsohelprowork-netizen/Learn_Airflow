@@ -16,3 +16,4 @@ python-ldap
 authlib
 apache-airflow-providers-hashicorp
 apache-airflow-providers-amazon
+statsd

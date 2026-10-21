@@ -24,6 +24,10 @@ usage() {
     echo "  start          Provision KinD cluster and deploy Keycloak + Airflow"
     echo "  stop           Tear down the local KinD cluster cleanly"
     echo "  build          Build the custom Airflow 3 Docker image"
+    echo "  autoscaler     View KEDA worker autoscaler targets, HPA, and replica counts"
+    echo "  metrics        View Prometheus & Grafana status and dashboard URLs"
+    echo "  ingress        View Ingress routing, cert-manager TLS certificates, and DNS"
+    echo "  hosts          Add or check /etc/hosts DNS mappings for all TLS Ingress services"
     echo "  test-alert     Trigger the failure DAG to verify Gmail failure alerts"
     echo "  test-auth      Verify Keycloak OIDC token issuance and user claims"
     echo "  logs [pod]     Tail logs for worker, scheduler, or keycloak (default: worker)"
@@ -36,20 +40,37 @@ cmd="${1:-help}"
 
 case "${cmd}" in
     status)
-        echo -e "${CYAN}=== Airflow Kubernetes Cluster (Compute Layer) ===${NC}"
+        echo -e "${CYAN}=== Airflow Kubernetes Cluster (Compute Layer: namespace/airflow) ===${NC}"
         kubectl get pods -n "${NAMESPACE}"
+        echo ""
+        echo -e "${CYAN}=== Observability Stack (Prometheus + Grafana: namespace/observability) ===${NC}"
+        kubectl get pods -n observability 2>/dev/null || true
+        echo ""
+        echo -e "${CYAN}=== Worker Autoscaler (KEDA Operator: namespace/keda) ===${NC}"
+        kubectl get pods -n keda 2>/dev/null || true
         echo ""
         echo -e "${CYAN}=== External Infrastructure Services (Data & Security) ===${NC}"
         docker ps --filter "name=^/airflow-(keycloak|openldap|phpldapadmin|postgres|redis|vault|minio)$" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         echo ""
-        echo -e "${GREEN}=== Access Endpoints ===${NC}"
-        echo -e "Airflow Web UI:  ${YELLOW}http://localhost:8080${NC} (Click 'Sign in with keycloak')"
-        echo -e "Keycloak Admin:  ${YELLOW}http://localhost:8081${NC} (User: admin | Pass: admin | Realm: airflow)"
-        echo -e "phpLDAPadmin:    ${YELLOW}http://localhost:8082${NC} (Login DN: cn=admin,dc=example,dc=org | Pass: admin)"
-        echo -e "OpenLDAP Server: ${YELLOW}ldap://localhost:389${NC}"
-        echo -e "HashiCorp Vault: ${YELLOW}http://localhost:8200${NC} (Auth: Kubernetes ServiceAccount Auth)"
-        echo -e "MinIO Console:   ${YELLOW}http://localhost:9001${NC} (User: minioadmin | Pass: minioadmin)"
-        echo -e "Break-glass:     User: breakglass | Pass: (managed via secret 'airflow-breakglass-secret')"
+        NODE_IP=$(docker inspect airflow-local-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "172.18.0.2")
+        echo -e "${GREEN}=== Secure Enterprise Ingress Endpoints (HTTPS / TLS) ===${NC}"
+        echo -e "  Airflow Web UI:  ${CYAN}https://airflow.local${NC}  or  ${YELLOW}https://airflow.${NODE_IP}.nip.io${NC}"
+        echo -e "  Keycloak SSO:    ${CYAN}https://auth.local${NC}     or  ${YELLOW}https://auth.${NODE_IP}.nip.io${NC}"
+        echo -e "  Flower UI:       ${CYAN}https://flower.local${NC}   or  ${YELLOW}https://flower.${NODE_IP}.nip.io${NC}"
+        echo -e "  Grafana UI:      ${CYAN}https://grafana.local${NC}  or  ${YELLOW}https://grafana.${NODE_IP}.nip.io${NC}"
+        echo -e "  Prometheus UI:   ${CYAN}https://prometheus.local${NC} or ${YELLOW}https://prometheus.${NODE_IP}.nip.io${NC}"
+        echo -e "  HashiCorp Vault: ${CYAN}https://vault.local${NC}    or  ${YELLOW}https://vault.${NODE_IP}.nip.io${NC}"
+        echo -e "  MinIO Console:   ${CYAN}https://minio.local${NC}    or  ${YELLOW}https://minio.${NODE_IP}.nip.io${NC}"
+        echo -e "  phpLDAPadmin:    ${CYAN}https://ldap.local${NC}     or  ${YELLOW}https://ldap.${NODE_IP}.nip.io${NC}"
+        echo ""
+        echo -e "${GREEN}=== Direct Port Endpoints (HTTP Fallback) ===${NC}"
+        echo -e "  Airflow Web UI:  http://localhost:8080"
+        echo -e "  Keycloak Admin:  http://localhost:8081  (User: admin | Pass: admin | Realm: airflow)"
+        echo -e "  Flower Monitor:  http://localhost:5555"
+        echo -e "  HashiCorp Vault: http://localhost:8200  (Token: airflow-vault-root-token-2026)"
+        echo -e "  MinIO Console:   http://localhost:9001  (User: minioadmin | Pass: minioadmin)"
+        echo -e "  phpLDAPadmin:    http://localhost:8082  (Login DN: cn=admin,dc=example,dc=org | Pass: admin)"
+        echo -e "  OpenLDAP Server: ldap://localhost:389"
         echo ""
         echo -e "${GREEN}=== Enterprise Users & RBAC Matrix (Source: OpenLDAP) ===${NC}"
         echo "  alice          (Admin)              -> Pass: Alice-lab-1     (LDAP Group: airflow-admins)"
@@ -71,6 +92,61 @@ case "${cmd}" in
     build)
         echo -e "${CYAN}Building learn-airflow:3.3.2-python3.12...${NC}"
         docker build -t learn-airflow:3.3.2-python3.12 "${ROOT_DIR}"
+        ;;
+
+    autoscaler|keda)
+        echo -e "${CYAN}=== KEDA Worker Autoscaler Status ===${NC}"
+        kubectl get scaledobject,hpa -n "${NAMESPACE}"
+        echo ""
+        echo -e "${CYAN}=== Current Celery Worker Pods ===${NC}"
+        kubectl get pods -n "${NAMESPACE}" -l tier=airflow,component=worker
+        echo ""
+        echo -e "${CYAN}=== Database Task Queue Depth ===${NC}"
+        docker exec -i airflow-postgres psql -U airflow -d airflow -c "SELECT state, queue, count(*) FROM task_instance WHERE state IN ('running', 'queued') GROUP BY state, queue;" 2>/dev/null || echo "No active or queued tasks."
+        ;;
+
+    metrics|grafana)
+        echo -e "${CYAN}=== Observability Stack Status (Prometheus + Grafana) ===${NC}"
+        kubectl get pods -n observability
+        echo ""
+        echo -e "${GREEN}=== Access URLs ===${NC}"
+        echo -e "Grafana UI:    ${CYAN}https://grafana.local${NC}  (or http://localhost:3000 via port-forward)"
+        echo -e "Prometheus UI: ${CYAN}https://prometheus.local${NC} (or http://localhost:9090 via port-forward)"
+        echo ""
+        echo -e "${YELLOW}To port-forward Grafana locally on port 3000:${NC}"
+        echo "  kubectl port-forward svc/grafana 3000:3000 -n observability"
+        echo ""
+        echo -e "${YELLOW}To port-forward Prometheus locally on port 9090:${NC}"
+        echo "  kubectl port-forward svc/prometheus 9090:9090 -n observability"
+        ;;
+
+    ingress|tls)
+        echo -e "${CYAN}=== Kubernetes Ingress Resources ===${NC}"
+        kubectl get ingress -A
+        echo ""
+        echo -e "${CYAN}=== cert-manager TLS Certificates & CA Issuers ===${NC}"
+        kubectl get clusterissuer
+        echo ""
+        kubectl get certificate -n "${NAMESPACE}"
+        NODE_IP=$(docker inspect airflow-local-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "172.18.0.2")
+        echo -e "${GREEN}=== Immediate Zero-Config Access (Wildcard DNS) ===${NC}"
+        echo "Works instantly in any browser without modifying /etc/hosts:"
+        echo -e "  Airflow Web UI:  ${CYAN}https://airflow.${NODE_IP}.nip.io${NC}"
+        echo -e "  Keycloak SSO:    ${CYAN}https://auth.${NODE_IP}.nip.io${NC}"
+        echo -e "  Flower UI:       ${CYAN}https://flower.${NODE_IP}.nip.io${NC}"
+        echo -e "  Grafana UI:      ${CYAN}https://grafana.${NODE_IP}.nip.io${NC}"
+        echo -e "  Prometheus UI:   ${CYAN}https://prometheus.${NODE_IP}.nip.io${NC}"
+        echo -e "  HashiCorp Vault: ${CYAN}https://vault.${NODE_IP}.nip.io${NC}"
+        echo -e "  MinIO Console:   ${CYAN}https://minio.${NODE_IP}.nip.io${NC}"
+        echo -e "  phpLDAPadmin:    ${CYAN}https://ldap.${NODE_IP}.nip.io${NC}"
+        echo ""
+        echo -e "${GREEN}=== Short Domain Access (/etc/hosts) ===${NC}"
+        echo "Run './ctl hosts' to configure /etc/hosts for short domains:"
+        echo -e "  ${YELLOW}${NODE_IP} airflow.local auth.local flower.local grafana.local prometheus.local vault.local minio.local ldap.local${NC}"
+        ;;
+
+    hosts)
+        "${ROOT_DIR}/scripts/setup-hosts.sh"
         ;;
 
     test-alert)

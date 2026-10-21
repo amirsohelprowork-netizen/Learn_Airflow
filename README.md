@@ -14,9 +14,12 @@ Everything runs locally with a single command — no cloud accounts required.
 
 - [Architecture Overview](#architecture-overview)
   - [High-Level Topology](#high-level-topology)
-  - [Compute Layer (KinD Cluster)](#compute-layer-kind-cluster)
+  - [Compute & Platform Layer (KinD Cluster)](#compute--platform-layer-kind-cluster)
   - [External Infrastructure (Docker Containers)](#external-infrastructure-docker-containers)
   - [Data & Request Flow](#data--request-flow)
+- [TLS Ingress & Automated Certificate Management](#tls-ingress--automated-certificate-management)
+- [Worker Autoscaling — KEDA](#worker-autoscaling--keda)
+- [Observability Stack — Prometheus & Grafana](#observability-stack--prometheus--grafana)
 - [RBAC Architecture — Owner-Based Dynamic Access Control](#rbac-architecture--owner-based-dynamic-access-control)
   - [The Identity Chain: LDAP → Keycloak → Airflow](#the-identity-chain-ldap--keycloak--airflow)
   - [How It Works End-to-End](#how-it-works-end-to-end)
@@ -39,47 +42,78 @@ Everything runs locally with a single command — no cloud accounts required.
 The lab mirrors an enterprise deployment pattern where **stateful infrastructure
 services live outside the compute cluster** and are bridged in via headless
 Kubernetes Services + Endpoints. Airflow's compute workloads (scheduler, workers,
-API server, DAG processor, triggerer) run inside a KinD cluster, while databases,
-brokers, identity providers, and secret stores run as standalone Docker containers.
+API server, DAG processor, triggerer), platform controllers (NGINX Ingress,
+cert-manager CA, KEDA autoscaler), and observability (Prometheus + Grafana) run
+inside a KinD cluster, while databases, brokers, identity providers, and secret
+stores run as standalone Docker containers.
 
 ### High-Level Topology
 
 ```mermaid
 graph TB
-    subgraph HOST["Developer Machine (localhost)"]
+    subgraph CLIENT["Clients & Workstations"]
+        BROWSER["Developer Browser / CLI<br/><i>https://airflow.local | https://auth.local</i>"]
+    end
+
+    subgraph KIND["KinD Cluster — airflow-local"]
         direction TB
 
-        subgraph KIND["KinD Cluster — airflow-local"]
-            direction LR
-            API["API Server<br/><i>x2 replicas</i>"]
-            SCH["Scheduler<br/><i>x2 replicas</i>"]
-            DAG["DAG Processor<br/><i>x1 replica</i>"]
-            WRK["Celery Worker<br/><i>x1 replica</i>"]
-            TRG["Triggerer<br/><i>x1 replica</i>"]
-            FLW["Flower<br/><i>Celery Monitor</i>"]
-            GIT["git-sync<br/><i>sidecar</i>"]
+        subgraph INGRESS_LAYER["Ingress & Security Layer (TLS)"]
+            ING["NGINX Ingress Controller<br/><i>Terminates TLS (Port 80/443)</i>"]
+            CERT["cert-manager<br/><i>Internal Root CA Issuer</i>"]
         end
 
-        subgraph EXT["External Infrastructure (Docker Containers)"]
-            direction LR
-            PG["PostgreSQL 16<br/><i>Metadata DB</i>"]
-            RD["Redis 7<br/><i>Celery Broker</i>"]
-            KC["Keycloak 26<br/><i>OIDC IdP</i>"]
-            LDAP["OpenLDAP<br/><i>Enterprise Directory</i>"]
-            VLT["HashiCorp Vault<br/><i>Secrets Engine</i>"]
-            MINIO["MinIO<br/><i>S3-compatible Storage</i>"]
-            PHA["phpLDAPadmin<br/><i>LDAP Web GUI</i>"]
+        subgraph AIRFLOW_LAYER["Airflow Compute Layer (namespace/airflow)"]
+            API["API Server<br/><i>x2 replicas (FastAPI/Uvicorn)</i>"]
+            SCH["Scheduler<br/><i>x2 replicas (HA)</i>"]
+            DAG["DAG Processor<br/><i>x1 replica (Airflow 3 standalone)</i>"]
+            WRK["Celery Workers<br/><i>Dynamic 1-5 replicas (KEDA HPA)</i>"]
+            TRG["Triggerer<br/><i>x1 replica (async deferral)</i>"]
+            FLW["Flower<br/><i>Celery Monitor</i>"]
+            STATSD["StatsD Exporter<br/><i>Prometheus Metrics Bridge</i>"]
+            GIT["git-sync<br/><i>SSH Sidecar (30s poll)</i>"]
         end
+
+        subgraph AUTOSCALE_LAYER["Autoscaling Layer (namespace/keda)"]
+            KEDA["KEDA Operator + HPA<br/><i>Watches PostgreSQL Task Queue</i>"]
+        end
+
+        subgraph OBS_LAYER["Observability Layer (namespace/observability)"]
+            PROM["Prometheus<br/><i>Scrapes StatsD every 5s</i>"]
+            GRAF["Grafana 11<br/><i>Airflow Health Dashboards</i>"]
+        end
+    end
+
+    subgraph EXT["External Infrastructure (Docker Containers)"]
+        direction LR
+        PG["PostgreSQL 16<br/><i>Metadata DB</i>"]
+        RD["Redis 7<br/><i>Celery Broker</i>"]
+        KC["Keycloak 26<br/><i>OIDC IdP</i>"]
+        LDAP["OpenLDAP<br/><i>Enterprise Directory</i>"]
+        VLT["HashiCorp Vault<br/><i>Secrets Engine</i>"]
+        MINIO["MinIO<br/><i>S3-compatible Storage</i>"]
+        PHA["phpLDAPadmin<br/><i>LDAP Web GUI</i>"]
     end
 
     GMAIL["Gmail SMTP<br/><i>smtp.gmail.com:587</i>"]
     GH["GitHub<br/><i>DAG Source Repo</i>"]
+
+    BROWSER --> ING
+    ING -->|TLS SNI airflow.local| API
+    ING -->|TLS SNI auth.local| KC
+    ING -->|TLS SNI flower.local| FLW
+    ING -->|TLS SNI grafana.local| GRAF
+
+    CERT -.->|Auto-provisions TLS Secrets| ING
 
     API --- PG
     SCH --- PG
     SCH --- RD
     WRK --- PG
     WRK --- RD
+    KEDA -->|Monitors task_instance queue| PG
+    KEDA -->|Scales replicas| WRK
+
     API --- KC
     KC --- LDAP
     SCH --- VLT
@@ -88,23 +122,32 @@ graph TB
     SCH --- MINIO
     WRK --> GMAIL
     GIT --> GH
+
+    SCH -.->|StatsD UDP 9125| STATSD
+    WRK -.->|StatsD UDP 9125| STATSD
+    STATSD -.->|Scrapes HTTP 9102| PROM
+    PROM -->|Datasource| GRAF
 ```
 
-### Compute Layer (KinD Cluster)
+### Compute & Platform Layer (KinD Cluster)
 
-All Airflow components run inside the `airflow-local` KinD cluster, deployed via
-the official [Apache Airflow Helm chart](https://airflow.apache.org/docs/helm-chart/stable/index.html)
-with custom `values.yaml` overrides.
+Workloads are partitioned across Kubernetes namespaces (`airflow`, `keda`, `observability`, `ingress-nginx`, `cert-manager`):
 
-| Component | Replicas | Role |
-|:---|:---:|:---|
-| **API Server** | 2 | Airflow 3 FastAPI/Uvicorn UI & REST API, serves the web interface |
-| **Scheduler** | 2 | Parses DAGs, schedules task instances, manages the DAG run lifecycle |
-| **DAG Processor** | 1 | Standalone process that parses DAG files and applies `dag_policy` cluster policies |
-| **Celery Worker** | 1 | Executes task instances received from the Redis broker |
-| **Triggerer** | 1 | Monitors deferred tasks with async sensors and triggers |
-| **Flower** | 1 | Real-time Celery monitoring dashboard |
-| **git-sync** | sidecar | Pulls DAG files from GitHub every 30 seconds via SSH |
+| Component | Namespace | Replicas | Role |
+|:---|:---|:---:|:---|
+| **API Server** | `airflow` | 2 | Airflow 3 FastAPI/Uvicorn UI & REST API, serves web interface |
+| **Scheduler** | `airflow` | 2 | Parses DAGs, schedules task instances, manages DAG run lifecycle |
+| **DAG Processor** | `airflow` | 1 | Standalone process applying `dag_policy` dynamic RBAC policies |
+| **Celery Workers** | `airflow` | 1–5 (auto) | Autoscaled dynamically by KEDA based on queued/running tasks |
+| **Triggerer** | `airflow` | 1 | Monitors deferred tasks with async sensors and triggers |
+| **Flower** | `airflow` | 1 | Real-time Celery monitoring dashboard |
+| **StatsD Exporter** | `airflow` | 1 | Ingests native Airflow StatsD metrics and serves Prometheus endpoints |
+| **git-sync** | `airflow` | sidecar | Pulls DAG files from GitHub every 30 seconds via SSH |
+| **KEDA Operator** | `keda` | 1 | Event-driven autoscaler querying Airflow PostgreSQL task queue |
+| **Prometheus** | `observability` | 1 | Time-series metrics engine scraping StatsD exporter every 5s |
+| **Grafana** | `observability` | 1 | Real-time operational dashboard visualizing scheduler, tasks, and worker health |
+| **NGINX Ingress** | `ingress-nginx` | 1 | Edge reverse proxy terminating TLS for all cluster services |
+| **cert-manager** | `cert-manager` | 3 | Automated X.509 certificate provisioning via internal Root CA Issuer |
 
 All components have **resource limits**, **PodDisruptionBudgets**, and
 **NetworkPolicies** configured. The API Server is exposed via `NodePort 30080`,
@@ -176,7 +219,139 @@ sequenceDiagram
 
 ---
 
-## RBAC Architecture — Owner-Based Dynamic Access Control
+## TLS Ingress & Automated Certificate Management
+
+In enterprise environments, internal web services are never exposed over raw HTTP or direct NodePorts. This lab implements a production **Ingress & TLS termination architecture** using:
+- **NGINX Ingress Controller**: Edge reverse proxy routing HTTP/HTTPS traffic to internal services.
+- **cert-manager**: Kubernetes-native certificate controller managing the full X.509 lifecycle.
+- **Internal Enterprise Root CA**: A dedicated `ClusterIssuer` (`airflow-ca-issuer`) that automatically issues and rotates TLS certificates.
+
+```mermaid
+flowchart LR
+    subgraph Client["Developer Workstation"]
+        REQ["HTTPS Request<br/><i>https://airflow.local</i>"]
+    end
+
+    subgraph Cluster["KinD Kubernetes Cluster"]
+        ING["NGINX Ingress Controller<br/><i>Port 80/443</i>"]
+        CM["cert-manager<br/><i>ClusterIssuer (airflow-ca-issuer)</i>"]
+        SEC["Secret: airflow-tls-secret<br/><i>tls.crt + tls.key</i>"]
+
+        SVC_AIRFLOW["Service: airflow-api-server:8080"]
+        SVC_KC["Service: keycloak:8080"]
+        SVC_GRAF["Service: grafana:3000"]
+    end
+
+    REQ -->|SNI: airflow.local| ING
+    CM -->|Issues & Signs| SEC
+    SEC -.->|Mounted into| ING
+    ING -->|Reverse Proxy| SVC_AIRFLOW
+    ING -->|Reverse Proxy| SVC_KC
+    ING -->|Reverse Proxy| SVC_GRAF
+```
+
+### Ingress Routing & TLS Matrix
+
+| Service | Short Domain (`/etc/hosts`) | Instant Wildcard URL (Zero Config) | Target Service | TLS Secret |
+|:---|:---|:---|:---|:---|
+| **Airflow Web UI** | `https://airflow.local` | `https://airflow.172.18.0.2.nip.io` | `airflow-api-server:8080` | `airflow-tls-secret` |
+| **Keycloak SSO** | `https://auth.local` | `https://auth.172.18.0.2.nip.io` | `keycloak:8080` | `keycloak-tls-secret` |
+| **Flower Monitor** | `https://flower.local` | `https://flower.172.18.0.2.nip.io` | `airflow-flower:5555` | `flower-tls-secret` |
+| **Grafana UI** | `https://grafana.local` | `https://grafana.172.18.0.2.nip.io` | `grafana:3000` | `grafana-tls-secret` |
+| **Prometheus UI** | `https://prometheus.local` | `https://prometheus.172.18.0.2.nip.io` | `prometheus:9090` | `prometheus-tls-secret` |
+| **HashiCorp Vault** | `https://vault.local` | `https://vault.172.18.0.2.nip.io` | `vault:8200` | `vault-tls-secret` |
+| **MinIO Console** | `https://minio.local` | `https://minio.172.18.0.2.nip.io` | `s3:9001` | `minio-tls-secret` |
+| **phpLDAPadmin** | `https://ldap.local` | `https://ldap.172.18.0.2.nip.io` | `phpldapadmin:80` | `ldap-tls-secret` |
+
+> [!TIP]
+> **Two ways to access HTTPS:**
+> 1. **Immediate Zero-Config**: Open the `.nip.io` URLs in your browser right now — no system edits required.
+> 2. **Short Domains**: Run `sudo ./ctl hosts` to automatically append `172.18.0.2 airflow.local ...` to `/etc/hosts`.
+
+---
+
+## Worker Autoscaling — KEDA
+
+Rather than maintaining a static pool of Celery worker pods, the cluster runs **KEDA (Kubernetes Event-driven Autoscaling)** to dynamically scale workers based on workload demand.
+
+```mermaid
+flowchart TD
+    subgraph Airflow["Airflow Workload Activity"]
+        TI["Task Instances Queued / Running"]
+        PG[(PostgreSQL Metadata DB)]
+        TI -->|State: queued / running| PG
+    end
+
+    subgraph KEDA_Control["KEDA Controller Loop"]
+        SO["ScaledObject (airflow-worker)"]
+        AUTH["TriggerAuthentication (DB secret)"]
+        HPA["Horizontal Pod Autoscaler (HPA)"]
+
+        AUTH --> SO
+        SO -->|Polls every 5s| PG
+        SO -->|Calculates replica count| HPA
+    end
+
+    subgraph Workers["Celery Worker Deployment"]
+        W1["Worker Pod 1 (Always Warm)"]
+        W2["Worker Pod 2 (Scaled on Demand)"]
+        WN["Worker Pod N (Up to 5 max)"]
+
+        HPA -->|Scale up / down| W1
+        HPA -->|Scale up / down| W2
+        HPA -->|Scale up / down| WN
+    end
+```
+
+### Scaling Logic & Configuration
+
+1. **Trigger Query**: KEDA polls PostgreSQL every 5 seconds executing:
+   ```sql
+   SELECT ceil(COUNT(*)::decimal / 16)
+   FROM task_instance
+   WHERE (state='running' OR state='queued')
+     AND queue IN ('default')
+   ```
+2. **Capacity Ratio**: Celery workers run with concurrency `16`. When 16 tasks are active, 1 worker is required. When load bursts to 32 or 48 tasks, KEDA signals the HPA to instantly scale to 2 or 3 worker pods.
+3. **Scaling Limits**:
+   - `minReplicaCount: 1` — Keeps 1 warm worker pod running to eliminate cold-start latency for scheduled DAGs.
+   - `maxReplicaCount: 5` — Safeguards cluster compute capacity while allowing 5x parallel throughput.
+   - `cooldownPeriod: 30s` — Prevents rapid flapping after burst completion.
+
+Inspect real-time autoscaler health with:
+```bash
+./ctl autoscaler
+```
+
+---
+
+## Observability Stack — Prometheus & Grafana
+
+Operational health is continuously monitored using an enterprise **Prometheus & Grafana observability pipeline**:
+
+1. **StatsD Emission**: All Airflow containers (scheduler, worker, api-server, dag-processor, triggerer) emit fine-grained StatsD metrics over UDP to `airflow-statsd:9125`.
+2. **Prometheus Metrics Bridge**: The `statsd-exporter` translates StatsD metrics into standard Prometheus metrics on port `9102`.
+3. **Zero-Trust Network Policy**: A dedicated `allow-prometheus-scrape-statsd` NetworkPolicy permits pods in namespace `observability` to scrape metrics across namespace boundaries while preserving network isolation.
+4. **Grafana Dashboards**: Grafana runs with Prometheus pre-configured as the default datasource and comes pre-loaded with an **Airflow Production Overview** dashboard.
+
+### Key Metrics Monitored in Grafana
+
+| Metric | Source | Purpose |
+|:---|:---|:---|
+| `airflow_scheduler_heartbeat` | Scheduler | Liveness & health of Airflow schedulers |
+| `airflow_executor_open_slots` | Celery Executor | Available capacity in the Celery worker pool |
+| `airflow_executor_queued_tasks` | Celery Broker | Backlog latency and pending task instances |
+| `airflow_executor_running_tasks` | Celery Workers | Active parallel execution load |
+| `airflow_ti_finish` (by state) | Task Instances | Success, failure, and retry rates |
+| `airflow_dag_processing_total_parse_time` | DAG Processor | Detection of slow DAG parsing or parsing stalls |
+
+Access the dashboard:
+```bash
+./ctl metrics
+# Open https://grafana.local (or port-forward: kubectl port-forward svc/grafana 3000:3000 -n observability)
+```
+
+---
 
 The RBAC system achieves **complete DAG isolation** between teams without
 requiring DAG authors to hardcode any permissions. It uses a three-tier identity
@@ -351,16 +526,29 @@ cd Learn_Airflow
 
 ## Access Endpoints & Credentials
 
-### Service Endpoints
+### Secure Ingress Endpoints (HTTPS / TLS)
+
+| Service | Short Domain (`/etc/hosts`) | Instant Wildcard URL (Zero Config) | Protocol | Certificate |
+|:---|:---|:---|:---|:---|
+| **Airflow Web UI** | `https://airflow.local` | `https://airflow.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `airflow-tls-secret` (CA-signed) |
+| **Keycloak SSO** | `https://auth.local` | `https://auth.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `keycloak-tls-secret` (CA-signed) |
+| **Flower Monitor** | `https://flower.local` | `https://flower.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `flower-tls-secret` (CA-signed) |
+| **Grafana UI** | `https://grafana.local` | `https://grafana.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `grafana-tls-secret` (CA-signed) |
+| **Prometheus UI** | `https://prometheus.local` | `https://prometheus.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `prometheus-tls-secret` (CA-signed) |
+| **HashiCorp Vault** | `https://vault.local` | `https://vault.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `vault-tls-secret` (CA-signed) |
+| **MinIO Console** | `https://minio.local` | `https://minio.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `minio-tls-secret` (CA-signed) |
+| **phpLDAPadmin** | `https://ldap.local` | `https://ldap.172.18.0.2.nip.io` | HTTPS / HTTP/2 | `ldap-tls-secret` (CA-signed) |
+
+### Direct Service & Legacy Fallback Endpoints
 
 | Service | URL | Notes |
 |:---|:---|:---|
-| **Airflow Web UI** | [http://localhost:8080](http://localhost:8080) | Click "Sign in with keycloak" |
-| **Keycloak Admin** | [http://localhost:8081](http://localhost:8081) | Realm: `airflow` |
+| **Airflow Web UI (HTTP)** | [http://localhost:8080](http://localhost:8080) | NodePort 30080 fallback |
+| **Keycloak Admin (HTTP)** | [http://localhost:8081](http://localhost:8081) | Realm: `airflow` |
 | **phpLDAPadmin** | [http://localhost:8082](http://localhost:8082) | LDAP Web GUI |
 | **HashiCorp Vault** | [http://localhost:8200](http://localhost:8200) | K8s ServiceAccount Auth |
 | **MinIO Console** | [http://localhost:9001](http://localhost:9001) | S3 Object Browser |
-| **Flower** | [http://localhost:5555](http://localhost:5555) | Celery Monitoring |
+| **Flower (HTTP)** | [http://localhost:5555](http://localhost:5555) | NodePort 30555 fallback |
 
 ### User Credentials
 
@@ -394,10 +582,13 @@ lab lifecycle.
 
 | Command | Description |
 |:---|:---|
-| `./ctl start` | Create KinD cluster, build image, start all infra, deploy Airflow |
+| `./ctl start` | Create KinD cluster, build image, start all infra, deploy Airflow, Ingress, KEDA, and Observability |
 | `./ctl stop` | Delete KinD cluster and stop all external Docker containers |
-| `./ctl status` | Show pod health, external container status, endpoints, and credentials |
+| `./ctl status` | Show pod health across all namespaces, external container status, and endpoints |
 | `./ctl build` | Rebuild the custom Airflow Docker image |
+| `./ctl autoscaler` | Inspect KEDA worker autoscaler targets, HPA status, and database queue depth |
+| `./ctl metrics` | Check Prometheus & Grafana health, dashboard URLs, and port-forward helpers |
+| `./ctl ingress` | View Ingress routing, cert-manager TLS certificates, and local `/etc/hosts` DNS setup |
 | `./ctl test-alert` | Trigger the failure notification DAG and verify Gmail delivery |
 | `./ctl test-auth` | Test Keycloak OIDC token issuance for all team users |
 | `./ctl logs <target>` | Tail logs for `worker`, `scheduler`, or `keycloak` |
@@ -422,9 +613,9 @@ A `Makefile` wrapper is also available for common commands (`make start`,
 .
 ├── ctl                                  # Portable CLI — manages full lab lifecycle
 ├── Makefile                             # Make wrapper for CI/CD-friendly commands
-├── Dockerfile                           # Multi-stage Airflow 3 image (slim base + LDAP/auth deps)
-├── requirements.txt                     # Python deps: celery, fab, postgres, redis, smtp, ldap, vault, s3
-├── values.yaml                          # Helm chart values — executor, secrets, SMTP, git-sync, resources
+├── Dockerfile                           # Multi-stage Airflow 3 image (slim base + LDAP/auth/statsd deps)
+├── requirements.txt                     # Python deps: celery, fab, postgres, redis, smtp, ldap, vault, s3, statsd
+├── values.yaml                          # Helm chart values — executor, secrets, SMTP, git-sync, metrics, resources
 │
 ├── constraints/
 │   └── constraints-3.12.txt             # Pinned pip constraints for deterministic Python 3.12 builds
@@ -447,7 +638,15 @@ A `Makefile` wrapper is also available for common commands (`make start`,
 │       └── marketing_campaign.py        # Marketing campaign tracker (owner: marketing)
 │
 ├── k8s/
-│   ├── kind-cluster.yaml                # KinD config — NodePort mappings (8080, 5555)
+│   ├── kind-cluster.yaml                # KinD config — Ingress node-labels & port mappings (80, 443, 8080, 5555)
+│   ├── ingress/
+│   │   ├── cluster-issuer.yaml          # cert-manager Root CA & CA ClusterIssuer
+│   │   └── airflow-ingress.yaml         # Ingress rules with automated TLS termination
+│   ├── keda/
+│   │   └── keda-scaledobject.yaml       # KEDA ScaledObject & TriggerAuthentication for Celery workers
+│   ├── observability/
+│   │   ├── prometheus.yaml              # Prometheus deployment, config, and cross-namespace network policy
+│   │   └── grafana.yaml                 # Grafana deployment, datasources, and pre-baked Airflow dashboard
 │   ├── keycloak/
 │   │   ├── deployment.yaml              # Keycloak K8s Deployment + Service (NodePort 30081)
 │   │   ├── service.yaml                 # Headless Service + Endpoints bridging external Keycloak
@@ -465,8 +664,11 @@ A `Makefile` wrapper is also available for common commands (`make start`,
 │       └── service.yaml                 # Headless Service + Endpoints bridging external MinIO
 │
 ├── scripts/
-│   ├── start-local-k8s.sh               # Master orchestrator — KinD + image build + all infra + Helm
+│   ├── start-local-k8s.sh               # Master orchestrator — KinD + image build + all infra + Helm + Ingress/KEDA/Obs
 │   ├── stop-local-k8s.sh                # Cluster deletion + external container shutdown
+│   ├── setup-ingress.sh                 # NGINX Ingress controller & cert-manager TLS provisioning
+│   ├── setup-keda.sh                    # KEDA operator provisioning & worker autoscaler setup
+│   ├── setup-observability.sh           # Prometheus & Grafana deployment & dashboard setup
 │   ├── setup-ldap.sh                    # OpenLDAP + phpLDAPadmin provisioning + LDIF seeding
 │   ├── setup-keycloak.sh                # Keycloak provisioning + realm import + K8s bridge
 │   ├── setup-db-redis.sh                # PostgreSQL 16 + Redis 7 provisioning + K8s secrets

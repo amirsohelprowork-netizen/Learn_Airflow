@@ -36,7 +36,15 @@
       "protocol": "openid-connect",
       "redirectUris": [
         "http://localhost:8080/*",
-        "http://localhost:8080/oauth-authorized/keycloak"
+        "https://localhost:8080/*",
+        "http://localhost:8080/oauth-authorized/keycloak",
+        "http://airflow.local/*",
+        "https://airflow.local/*",
+        "http://airflow.local/oauth-authorized/keycloak",
+        "https://airflow.local/oauth-authorized/keycloak",
+        "http://airflow.172.18.0.2.nip.io/*",
+        "https://airflow.172.18.0.2.nip.io/*",
+        "*"
       ],
       "webOrigins": ["*"],
       "protocolMappers": [

@@ -59,6 +59,51 @@ for i in {1..60}; do
     sleep 2
 done
 
+echo "Ensuring Airflow client in Keycloak permits all Ingress redirect URIs..."
+python3 -c '
+import urllib.request, urllib.parse, json
+
+data = urllib.parse.urlencode({
+    "client_id": "admin-cli",
+    "username": "admin",
+    "password": "admin",
+    "grant_type": "password"
+}).encode()
+
+try:
+    req = urllib.request.Request("http://localhost:'"${KEYCLOAK_PORT}"'/realms/master/protocol/openid-connect/token", data=data)
+    res = urllib.request.urlopen(req)
+    token = json.loads(res.read())["access_token"]
+
+    req2 = urllib.request.Request("http://localhost:'"${KEYCLOAK_PORT}"'/admin/realms/airflow/clients?clientId=airflow", headers={"Authorization": f"Bearer {token}"})
+    res2 = urllib.request.urlopen(req2)
+    clients = json.loads(res2.read())
+    if clients:
+        client = clients[0]
+        client["redirectUris"] = [
+            "http://localhost:8080/*",
+            "https://localhost:8080/*",
+            "http://localhost:8080/oauth-authorized/keycloak",
+            "http://airflow.local/*",
+            "https://airflow.local/*",
+            "http://airflow.local/oauth-authorized/keycloak",
+            "https://airflow.local/oauth-authorized/keycloak",
+            "http://airflow.172.18.0.2.nip.io/*",
+            "https://airflow.172.18.0.2.nip.io/*",
+            "*"
+        ]
+        client["webOrigins"] = ["*"]
+        put_req = urllib.request.Request(
+            f"http://localhost:'"${KEYCLOAK_PORT}"'/admin/realms/airflow/clients/{client[\"id\"]}",
+            data=json.dumps(client).encode(),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            method="PUT"
+        )
+        urllib.request.urlopen(put_req)
+except Exception:
+    pass
+' 2>/dev/null || true
+
 echo -e "${CYAN}=== 2. Mapping External Keycloak into Kubernetes ===${NC}"
 if kubectl cluster-info >/dev/null 2>&1; then
     kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -

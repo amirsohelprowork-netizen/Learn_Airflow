@@ -55,6 +55,12 @@ config:
     backend_kwargs: '{"url": "http://vault.airflow.svc.cluster.local:8200", "auth_type": "kubernetes", "kubernetes_role": "airflow", "mount_point": "secret", "kv_engine_version": 2, "variables_path": "airflow/variables", "connections_path": "airflow/connections", "config_path": "airflow/config"}'
 
 
+  metrics:
+    statsd_on: "True"
+    statsd_host: "airflow-statsd"
+    statsd_port: 9125
+    statsd_prefix: "airflow"
+
   api:
     auth_backends: "airflow.api.auth.backend.session"
 

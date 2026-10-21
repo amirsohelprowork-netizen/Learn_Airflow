@@ -1,0 +1,27 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: airflow-selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: airflow-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: "Airflow Lab Enterprise Root CA"
+  secretName: airflow-root-ca-secret
+  issuerRef:
+    name: airflow-selfsigned-issuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: airflow-ca-issuer
+spec:
+  ca:
+    secretName: airflow-root-ca-secret
