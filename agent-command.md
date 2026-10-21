@@ -37,6 +37,134 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-21 15:15 — remove invalid show_implicit_attributes server index in phpLDAPadmin
+
+**Command**
+
+```bash
+docker exec -i airflow-phpldapadmin sed -i '/show_implicit_attributes/d' /var/www/phpldapadmin/config/config.php
+docker exec airflow-phpldapadmin service php7.3-fpm reload
+```
+
+**Result:** worked
+
+**Why:** Removed the undefined `appearance,show_implicit_attributes` index from the `$servers` Datastore object and reloaded php-fpm, resolving the fatal phpLDAPadmin runtime error.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
+### 2026-10-21 14:50 — configure phpLDAPadmin custom_attrs for memberOf and reload php-fpm
+
+**Command**
+
+```bash
+docker exec -i airflow-phpldapadmin bash -c 'echo "\$servers->setValue(\"server\",\"custom_attrs\",array(\"memberof\",\"memberOf\"));" >> /var/www/phpldapadmin/config/config.php'
+docker exec airflow-phpldapadmin service php7.3-fpm reload
+```
+
+**Result:** worked
+
+**Why:** Enabled custom_attrs in phpLDAPadmin config to prevent Template.php from unsetting operational attribute memberOf, and reloaded php-fpm to apply changes immediately.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
+### 2026-10-21 14:40 — configure OpenLDAP memberof overlay for groupOfNames and enable operational attribute display in phpLDAPadmin
+
+**Command**
+
+```bash
+docker exec -i airflow-openldap ldapmodify -Q -Y EXTERNAL -H ldapi:/// << 'EOF'
+dn: olcOverlay={0}memberof,olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcMemberOfGroupOC
+olcMemberOfGroupOC: groupOfNames
+-
+replace: olcMemberOfMemberAD
+olcMemberOfMemberAD: member
+EOF
+docker exec -i airflow-phpldapadmin bash -c 'echo "\$servers->setValue(\"appearance\",\"show_implicit_attributes\",true);" >> /var/www/phpldapadmin/config/config.php'
+```
+
+**Result:** worked
+
+**Why:** Reconfigured the slapd memberof overlay to monitor groupOfNames and attribute member, triggering dynamic memberOf operational attribute generation on user objects, and configured phpLDAPadmin to display implicit/operational attributes.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
+### 2026-10-21 14:15 — deploy OpenLDAP & phpLDAPadmin and configure Keycloak LDAP User Federation
+
+**Command**
+
+```bash
+docker run -d --name airflow-openldap -p 389:389 -e LDAP_ORGANISATION="Example Inc." -e LDAP_DOMAIN="example.org" -e LDAP_ADMIN_PASSWORD="<redacted>" osixia/openldap:1.5.0
+docker run -d --name airflow-phpldapadmin -p 8082:80 -e PHPLDAPADMIN_LDAP_HOSTS="airflow-openldap" -e PHPLDAPADMIN_HTTPS=false osixia/phpldapadmin:0.9.0
+docker network connect kind airflow-openldap
+docker network connect kind airflow-phpldapadmin
+docker exec -i airflow-openldap ldapadd -x -D "cn=admin,dc=example,dc=org" -w <redacted> < k8s/ldap/bootstrap.ldif
+./ctl test-auth
+```
+
+**Result:** worked
+
+**Why:** Deployed OpenLDAP and phpLDAPadmin, seeded enterprise users and AD groups (`aid-*-auth`), connected Keycloak via LDAP User Storage Provider and Group Mapper, deleted manual department users from Keycloak, and verified seamless OIDC federation and token claim extraction.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
+### 2026-10-21 13:56 — assign default-roles-airflow to Keycloak users to resolve Account Console 401 Unauthorized
+
+**Command**
+
+```bash
+TOKEN=$(curl -s -d "client_id=admin-cli" -d "username=admin" -d "password=<redacted>" -d "grant_type=password" http://localhost:8081/realms/master/protocol/openid-connect/token | jq -r .access_token)
+ROLE_JSON=$(curl -s -H "Authorization: Bearer <redacted>" http://localhost:8081/admin/realms/airflow/roles/default-roles-airflow)
+for u in alice breakglass user_finance user_marketing user_logistics user_analytics; do
+    KUID=$(curl -s -H "Authorization: Bearer <redacted>" "http://localhost:8081/admin/realms/airflow/users?username=$u" | jq -r '.[0].id')
+    if [ -n "$KUID" ] && [ "$KUID" != "null" ]; then
+        curl -s -X POST -H "Authorization: Bearer <redacted>" -H "Content-Type: application/json" -d "[$ROLE_JSON]" "http://localhost:8081/admin/realms/airflow/users/$KUID/role-mappings/realm"
+    fi
+done
+```
+
+**Result:** worked
+
+**Why:** Granted Keycloak composite role `default-roles-airflow` containing `account:manage-account` and `account:view-profile` to all users, enabling them to access Keycloak's Account Console without HTTP 401 Unauthorized errors.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+
 ### 2026-10-21 00:52 — inspect real-time pod and container resource usage
 
 **Command**

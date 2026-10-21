@@ -11,3 +11,7 @@ if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
 else
     echo "KinD cluster '${CLUSTER_NAME}' is not currently running."
 fi
+
+echo "=== Stopping external infrastructure containers ==="
+docker stop airflow-keycloak airflow-openldap airflow-phpldapadmin airflow-postgres airflow-redis airflow-vault airflow-minio 2>/dev/null || true
+echo "All external containers stopped. Volumes and metadata are preserved."

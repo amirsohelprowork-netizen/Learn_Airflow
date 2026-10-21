@@ -21,26 +21,28 @@ docker build -t "${IMAGE_TAG}" "${ROOT_DIR}"
 echo "Loading ${IMAGE_TAG} into ${CLUSTER_NAME}..."
 kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
 
-echo "=== 3. Setting Up Namespace & Keycloak ==="
+echo "=== 3. Setting Up Namespace & ConfigMaps ==="
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-kubectl create configmap keycloak-realm \
-    --from-file=airflow-realm.json="${ROOT_DIR}/k8s/keycloak/realm-airflow.json" \
-    -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap custom-webserver-config \
     --from-file=webserver_config.py="${ROOT_DIR}/config/webserver_config.py" \
     -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap airflow-webserver-config \
     --from-file=webserver_config.py="${ROOT_DIR}/config/webserver_config.py" \
     -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${ROOT_DIR}/k8s/keycloak/deployment.yaml"
 
-echo "Waiting for Keycloak to be ready..."
-kubectl rollout status deployment/keycloak -n "${NAMESPACE}" --timeout=300s
+echo "=== 3a. Starting & Mapping External OpenLDAP Enterprise Directory ==="
+"${ROOT_DIR}/scripts/setup-ldap.sh"
 
-echo "=== 3b. Starting & Mapping External HashiCorp Vault ==="
+echo "=== 3b. Starting & Mapping External Keycloak Identity Provider ==="
+"${ROOT_DIR}/scripts/setup-keycloak.sh"
+
+echo "=== 3c. Starting & Mapping External PostgreSQL & Redis ==="
+"${ROOT_DIR}/scripts/setup-db-redis.sh"
+
+echo "=== 3d. Starting & Mapping External HashiCorp Vault ==="
 "${ROOT_DIR}/scripts/setup-vault.sh"
 
-echo "=== 3c. Starting & Mapping External S3 Storage ==="
+echo "=== 3e. Starting & Mapping External S3 Storage ==="
 "${ROOT_DIR}/scripts/setup-s3.sh"
 
 
@@ -88,16 +90,30 @@ else
     echo "Secret 'airflow-ssh-secret' already exists."
 fi
 
+echo "=== 4c. Checking Break-Glass Admin Password Secret ==="
+BREAKGLASS_SECRET="airflow-breakglass-secret"
+BREAKGLASS_PASS="${AIRFLOW_ADMIN_PASSWORD:-ChangeMeInSecret123!}"
+if ! kubectl get secret "${BREAKGLASS_SECRET}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+    kubectl create secret generic "${BREAKGLASS_SECRET}" \
+        --from-literal=password="${BREAKGLASS_PASS}" \
+        -n "${NAMESPACE}"
+    echo "Created '${BREAKGLASS_SECRET}' in namespace '${NAMESPACE}'."
+else
+    BREAKGLASS_PASS=$(kubectl get secret "${BREAKGLASS_SECRET}" -n "${NAMESPACE}" -o jsonpath='{.data.password}' | base64 -d)
+fi
+
 echo "=== 5. Deploying Airflow with Helm ==="
 helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
 helm repo update apache-airflow
 
 helm upgrade --install airflow apache-airflow/airflow \
     -f "${ROOT_DIR}/values.yaml" \
+    --set-string createUserJob.defaultUser.password="${BREAKGLASS_PASS}" \
     --namespace "${NAMESPACE}"
 
-echo "Waiting for scheduler pod..."
+echo "Waiting for scheduler and api-server pods..."
 kubectl rollout status deployment/airflow-scheduler -n "${NAMESPACE}" --timeout=300s
+kubectl rollout status deployment/airflow-api-server -n "${NAMESPACE}" --timeout=300s
 
 echo "Ensuring AD team roles exist in Airflow database..."
 kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- airflow roles create aid-finance-auth 2>/dev/null || true
@@ -145,6 +161,8 @@ echo "Airflow & Keycloak are deploying to local Kubernetes (KinD)!"
 echo "======================================================================"
 echo "Airflow Web UI:  http://localhost:8080"
 echo "Keycloak Admin:  http://localhost:8081  (User: admin | Pass: admin)"
+echo "phpLDAPadmin:    http://localhost:8082  (Login DN: cn=admin,dc=example,dc=org | Pass: admin)"
+echo "OpenLDAP Server: ldap://localhost:389"
 echo "HashiCorp Vault: http://localhost:8200  (Token: airflow-vault-root-token-2026)"
 echo "MinIO S3 API:    http://localhost:9000  (S3 Endpoint)"
 echo "MinIO Console:   http://localhost:9001  (User: minioadmin | Pass: minioadmin)"

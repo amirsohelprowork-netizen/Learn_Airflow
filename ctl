@@ -28,6 +28,7 @@ usage() {
     echo "  test-auth      Verify Keycloak OIDC token issuance and user claims"
     echo "  logs [pod]     Tail logs for worker, scheduler, or keycloak (default: worker)"
     echo "  vault [action] Manage external HashiCorp Vault (status, ui, start, seed)"
+    echo "  ldap [action]  Manage Enterprise OpenLDAP (status, ui, add-user, list-users, list-groups, sync)"
     echo "  help           Display this help screen"
 }
 
@@ -35,18 +36,24 @@ cmd="${1:-help}"
 
 case "${cmd}" in
     status)
-        echo -e "${CYAN}=== Airflow Kubernetes Cluster Status ===${NC}"
+        echo -e "${CYAN}=== Airflow Kubernetes Cluster (Compute Layer) ===${NC}"
         kubectl get pods -n "${NAMESPACE}"
+        echo ""
+        echo -e "${CYAN}=== External Infrastructure Services (Data & Security) ===${NC}"
+        docker ps --filter "name=^/airflow-(keycloak|openldap|phpldapadmin|postgres|redis|vault|minio)$" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         echo ""
         echo -e "${GREEN}=== Access Endpoints ===${NC}"
         echo -e "Airflow Web UI:  ${YELLOW}http://localhost:8080${NC} (Click 'Sign in with keycloak')"
         echo -e "Keycloak Admin:  ${YELLOW}http://localhost:8081${NC} (User: admin | Pass: admin | Realm: airflow)"
-        echo -e "HashiCorp Vault: ${YELLOW}http://localhost:8200${NC} (Token: airflow-vault-root-token-2026)"
-        echo -e "Break-glass:     User: breakglass | Pass: ChangeMeInSecret123!"
+        echo -e "phpLDAPadmin:    ${YELLOW}http://localhost:8082${NC} (Login DN: cn=admin,dc=example,dc=org | Pass: admin)"
+        echo -e "OpenLDAP Server: ${YELLOW}ldap://localhost:389${NC}"
+        echo -e "HashiCorp Vault: ${YELLOW}http://localhost:8200${NC} (Auth: Kubernetes ServiceAccount Auth)"
+        echo -e "MinIO Console:   ${YELLOW}http://localhost:9001${NC} (User: minioadmin | Pass: minioadmin)"
+        echo -e "Break-glass:     User: breakglass | Pass: (managed via secret 'airflow-breakglass-secret')"
         echo ""
-        echo -e "${GREEN}=== Keycloak Users & RBAC Matrix ===${NC}"
-        echo "  alice          (Admin)              -> Pass: Alice-lab-1"
-        echo "  breakglass     (Admin)              -> Pass: ChangeMeInSecret123!"
+        echo -e "${GREEN}=== Enterprise Users & RBAC Matrix (Source: OpenLDAP) ===${NC}"
+        echo "  alice          (Admin)              -> Pass: Alice-lab-1     (LDAP Group: airflow-admins)"
+        echo "  breakglass     (Admin)              -> Pass: (read from secret 'airflow-breakglass-secret')"
         echo "  user_finance   (aid-finance-auth)   -> Pass: Finance-lab-1   (Owns: finance_monthly_report)"
         echo "  user_marketing (aid-marketing-auth) -> Pass: Marketing-lab-1 (Owns: marketing_campaign_tracker)"
         echo "  user_logistics (aid-logistics-auth) -> Pass: Logistics-lab-1 (Owns: logistics_fleet_monitoring)"
@@ -118,7 +125,7 @@ for username, password, expected_group in creds:
                 kubectl logs -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -f
                 ;;
             keycloak)
-                kubectl logs -n "${NAMESPACE}" deploy/keycloak -c keycloak -f
+                docker logs -f airflow-keycloak
                 ;;
             *)
                 echo -e "${RED}Unknown logs target: ${target}. Choose: worker, scheduler, keycloak${NC}"
@@ -145,6 +152,83 @@ for username, password, expected_group in creds:
                 ;;
             *)
                 echo -e "${RED}Unknown vault action: ${action}. Use: status, ui, start, seed${NC}"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    ldap)
+        action="${2:-status}"
+        case "${action}" in
+            start)
+                "${ROOT_DIR}/scripts/setup-ldap.sh"
+                ;;
+            status)
+                echo -e "${CYAN}=== External OpenLDAP & phpLDAPadmin Status ===${NC}"
+                docker ps --filter "name=^/airflow-(openldap|phpldapadmin)$" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                ;;
+            ui)
+                echo -e "${GREEN}phpLDAPadmin Web GUI: ${YELLOW}http://localhost:8082${NC}"
+                echo -e "Login DN:             ${YELLOW}cn=admin,dc=example,dc=org${NC}"
+                echo -e "Password:             ${YELLOW}admin${NC}"
+                ;;
+            list-users)
+                echo -e "${CYAN}=== Users in OpenLDAP (ou=users,dc=example,dc=org) ===${NC}"
+                docker exec airflow-openldap ldapsearch -x -H ldap://localhost -b "ou=users,dc=example,dc=org" -D "cn=admin,dc=example,dc=org" -w admin "(objectClass=inetOrgPerson)" uid cn mail | grep -E "^(dn|uid|cn|mail):"
+                ;;
+            list-groups)
+                echo -e "${CYAN}=== AD Groups & Members in OpenLDAP (ou=groups,dc=example,dc=org) ===${NC}"
+                docker exec airflow-openldap ldapsearch -x -H ldap://localhost -b "ou=groups,dc=example,dc=org" -D "cn=admin,dc=example,dc=org" -w admin "(objectClass=groupOfNames)" cn member | grep -E "^(dn|cn|member):"
+                ;;
+            add-user)
+                new_user="${3:-}"
+                new_fname="${4:-}"
+                new_lname="${5:-}"
+                new_email="${6:-}"
+                new_pass="${7:-}"
+                target_group="${8:-}"
+                if [[ -z "${new_user}" || -z "${new_fname}" || -z "${new_lname}" || -z "${new_email}" || -z "${new_pass}" || -z "${target_group}" ]]; then
+                    echo -e "${RED}Usage: ./ctl ldap add-user <username> <firstName> <lastName> <email> <password> <group>${NC}"
+                    echo "Example: ./ctl ldap add-user bob Bob Builder bob@example.com Secret123! aid-finance-auth"
+                    exit 1
+                fi
+                echo -e "${CYAN}Creating user '${new_user}' in OpenLDAP...${NC}"
+                docker exec -i airflow-openldap ldapadd -x -D "cn=admin,dc=example,dc=org" -w admin << EOF
+dn: uid=${new_user},ou=users,dc=example,dc=org
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: ${new_user}
+cn: ${new_fname} ${new_lname}
+sn: ${new_lname}
+givenName: ${new_fname}
+mail: ${new_email}
+userPassword: ${new_pass}
+EOF
+                echo -e "${CYAN}Adding '${new_user}' to AD group '${target_group}'...${NC}"
+                docker exec -i airflow-openldap ldapmodify -x -D "cn=admin,dc=example,dc=org" -w admin << EOF
+dn: cn=${target_group},ou=groups,dc=example,dc=org
+changetype: modify
+add: member
+member: uid=${new_user},ou=users,dc=example,dc=org
+EOF
+                echo -e "${GREEN}User '${new_user}' created in LDAP and joined group '${target_group}'.${NC}"
+                echo "Triggering Keycloak sync..."
+                "${ROOT_DIR}/ctl" ldap sync
+                ;;
+            sync)
+                echo -e "${CYAN}Triggering Keycloak LDAP User Federation Sync...${NC}"
+                TOKEN=$(curl -s -d "client_id=admin-cli" -d "username=admin" -d "password=admin" -d "grant_type=password" http://localhost:8081/realms/master/protocol/openid-connect/token | jq -r .access_token)
+                COMP_ID=$(curl -s -H "Authorization: Bearer ${TOKEN}" http://localhost:8081/admin/realms/airflow/components | jq -r '.[] | select(.name=="openldap" and .providerType=="org.keycloak.storage.UserStorageProvider") | .id')
+                if [[ -n "${COMP_ID}" && "${COMP_ID}" != "null" ]]; then
+                    curl -s -X POST -H "Authorization: Bearer ${TOKEN}" "http://localhost:8081/admin/realms/airflow/user-storage/${COMP_ID}/sync?action=triggerFullSync" | jq .
+                else
+                    echo -e "${RED}LDAP provider not found in Keycloak realm 'airflow'.${NC}"
+                fi
+                ;;
+            *)
+                echo -e "${RED}Unknown ldap action: ${action}. Use: status, ui, start, add-user, list-users, list-groups, sync${NC}"
                 exit 1
                 ;;
         esac

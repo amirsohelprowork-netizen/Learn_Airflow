@@ -52,7 +52,7 @@ config:
 
   secrets:
     backend: "airflow.providers.hashicorp.secrets.vault.VaultBackend"
-    backend_kwargs: '{"url": "http://vault.airflow.svc.cluster.local:8200", "token": "airflow-vault-root-token-2026", "mount_point": "secret", "kv_engine_version": 2, "variables_path": "airflow/variables", "connections_path": "airflow/connections", "config_path": "airflow/config"}'
+    backend_kwargs: '{"url": "http://vault.airflow.svc.cluster.local:8200", "auth_type": "kubernetes", "kubernetes_role": "airflow", "mount_point": "secret", "kv_engine_version": 2, "variables_path": "airflow/variables", "connections_path": "airflow/connections", "config_path": "airflow/config"}'
 
 
   api:
@@ -135,10 +135,31 @@ ingress:
   web:
     enabled: false
 
+# --- Network Policies ---
+# Restricts ingress traffic between pods in the namespace
+networkPolicies:
+  enabled: true
+
 # --- API Server (Airflow 3.x UI & API) ---
 apiServer:
   enabled: true
-  replicas: 1
+  replicas: 2
+  podDisruptionBudget:
+    enabled: true
+    config:
+      maxUnavailable: 1
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+  networkPolicy:
+    ingress:
+      from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
   service:
     type: NodePort
     ports:
@@ -158,7 +179,11 @@ apiServer:
 
 # --- Scheduler ---
 scheduler:
-  replicas: 1
+  replicas: 2
+  podDisruptionBudget:
+    enabled: true
+    config:
+      maxUnavailable: 1
   resources:
     limits:
       cpu: "1000m"
@@ -171,12 +196,24 @@ scheduler:
 dagProcessor:
   enabled: true
   replicas: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1.5Gi"
+    requests:
+      cpu: "150m"
+      memory: "256Mi"
 
 # --- Workers (Celery) ---
 workers:
   replicas: 1
   persistence:
     enabled: false
+  celery:
+    podDisruptionBudget:
+      enabled: true
+      config:
+        maxUnavailable: 1
   resources:
     limits:
       cpu: "1000m"
@@ -191,8 +228,16 @@ triggerer:
   replicas: 1
   persistence:
     enabled: false
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
 
 # --- Initial Break-Glass Admin User Creation ---
+# Password is not committed in Git. Injected dynamically at runtime via Kubernetes Secret.
 createUserJob:
   enabled: true
   defaultUser:
@@ -201,7 +246,6 @@ createUserJob:
     email: alerts@example.com
     firstName: Break
     lastName: Glass
-    password: "ChangeMeInSecret123!"
 
 # --- DAGs Deployment ---
 # Synced dynamically from Git repository via git-sync sidecar container.
@@ -230,15 +274,30 @@ logs:
   persistence:
     enabled: false
 
-# --- Local Metadata Database (Postgres) & Celery Broker (Redis) ---
+# --- External Metadata Database (PostgreSQL) & Celery Broker (Redis) ---
+# Stateful pods disabled in-cluster; Airflow connects to external managed services via Kubernetes Secrets.
 postgresql:
-  enabled: true
+  enabled: false
 
 redis:
-  enabled: true
-  persistence:
-    enabled: false
+  enabled: false
+
+data:
+  metadataSecretName: "airflow-metadata-secret"
+  brokerUrlSecretName: "airflow-broker-secret"
 
 # --- Flower (Celery Monitoring) ---
 flower:
   enabled: true
+  networkPolicy:
+    ingress:
+      from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+  resources:
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+    requests:
+      cpu: "50m"
+      memory: "128Mi"

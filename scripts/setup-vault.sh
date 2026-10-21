@@ -2,6 +2,7 @@
 # ==============================================================================
 # Setup & Seed External HashiCorp Vault for Airflow
 # Runs HashiCorp Vault as an external Docker container outside KinD cluster
+# Configures Kubernetes Auth method for zero-secret ServiceAccount authentication
 # ==============================================================================
 set -euo pipefail
 
@@ -39,6 +40,11 @@ else
     echo "HashiCorp Vault container '${VAULT_CONTAINER}' is already running."
 fi
 
+# Connect Vault container to KinD network if available so it can talk to the KinD API server
+if docker network inspect kind >/dev/null 2>&1; then
+    docker network connect kind "${VAULT_CONTAINER}" 2>/dev/null || true
+fi
+
 echo "Waiting for Vault to be ready at ${VAULT_ADDR}..."
 for i in {1..30}; do
     if curl -s -f "${VAULT_ADDR}/v1/sys/health" >/dev/null 2>&1; then
@@ -50,8 +56,85 @@ done
 
 echo -e "${CYAN}=== 2. Connecting Vault to Kubernetes KinD Cluster ===${NC}"
 if kubectl cluster-info >/dev/null 2>&1; then
+    kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -f "${ROOT_DIR}/k8s/vault/service.yaml"
     echo -e "${GREEN}Vault service & endpoints mapped in namespace '${NAMESPACE}'.${NC}"
+
+    echo -e "${CYAN}=== 2b. Configuring Vault Kubernetes Authentication Method ===${NC}"
+    # Setup ServiceAccount and TokenReview permissions for Vault
+    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-reviewer
+  namespace: ${NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-reviewer-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: vault-reviewer
+  namespace: ${NAMESPACE}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-reviewer-token
+  namespace: ${NAMESPACE}
+  annotations:
+    kubernetes.io/service-account.name: vault-reviewer
+type: kubernetes.io/service-account-token
+EOF
+
+    sleep 1
+    CA_CERT=$(kubectl get secret vault-reviewer-token -n "${NAMESPACE}" -o jsonpath='{.data.ca\.crt}' | base64 -d)
+    REVIEWER_TOKEN=$(kubectl get secret vault-reviewer-token -n "${NAMESPACE}" -o jsonpath='{.data.token}' | base64 -d)
+
+    # Enable and configure Kubernetes Auth in Vault
+    docker exec -e VAULT_TOKEN="${VAULT_TOKEN}" -e VAULT_ADDR="http://127.0.0.1:${VAULT_PORT}" "${VAULT_CONTAINER}" \
+        vault auth enable kubernetes 2>/dev/null || true
+
+    docker exec -e VAULT_TOKEN="${VAULT_TOKEN}" -e VAULT_ADDR="http://127.0.0.1:${VAULT_PORT}" "${VAULT_CONTAINER}" \
+        vault write auth/kubernetes/config \
+        kubernetes_host="https://airflow-local-control-plane:6443" \
+        kubernetes_ca_cert="${CA_CERT}" \
+        token_reviewer_jwt="${REVIEWER_TOKEN}" >/dev/null
+
+    # Create policy allowing Airflow to read secret/data/airflow/*
+    docker exec -i -e VAULT_TOKEN="${VAULT_TOKEN}" -e VAULT_ADDR="http://127.0.0.1:${VAULT_PORT}" "${VAULT_CONTAINER}" \
+        vault policy write airflow - <<'EOF'
+path "secret/data/airflow/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/airflow/*" {
+  capabilities = ["read", "list"]
+}
+path "secret/data/airflow/variables/*" {
+  capabilities = ["read"]
+}
+path "secret/data/airflow/connections/*" {
+  capabilities = ["read"]
+}
+path "secret/data/airflow/config/*" {
+  capabilities = ["read"]
+}
+EOF
+
+    # Bind the policy to the Airflow ServiceAccounts
+    docker exec -e VAULT_TOKEN="${VAULT_TOKEN}" -e VAULT_ADDR="http://127.0.0.1:${VAULT_PORT}" "${VAULT_CONTAINER}" \
+        vault write auth/kubernetes/role/airflow \
+        bound_service_account_names="airflow-*" \
+        bound_service_account_namespaces="${NAMESPACE}" \
+        policies="airflow" \
+        ttl=24h >/dev/null
+
+    echo -e "${GREEN}Vault Kubernetes auth configured (Role: airflow, bound to airflow-* ServiceAccounts).${NC}"
 else
     echo -e "${YELLOW}Kubernetes cluster not detected yet; skipping k8s service mapping.${NC}"
 fi
@@ -93,9 +176,9 @@ write_secret('airflow/config/api/secret_key', {'value': '2SL0kSlBxSYcpJnwzhBCWFl
 print('Seeding Airflow Connections:')
 write_secret('airflow/connections/postgres_default', {
     'conn_type': 'postgres',
-    'host': 'airflow-postgresql.airflow.svc.cluster.local',
-    'login': 'postgres',
-    'password': 'postgres',
+    'host': 'postgres.airflow.svc.cluster.local',
+    'login': 'airflow',
+    'password': 'airflow',
     'port': 5432,
     'schema': 'airflow'
 })
@@ -141,6 +224,6 @@ echo -e "${GREEN}===============================================================
 echo -e "${GREEN}HashiCorp Vault is running outside the cluster!${NC}"
 echo -e "${GREEN}======================================================================${NC}"
 echo -e "Vault Web UI:       ${YELLOW}http://localhost:8200${NC}"
-echo -e "Root Token:         ${YELLOW}${VAULT_TOKEN}${NC}"
 echo -e "In-Cluster Endpoint:${YELLOW}http://vault.airflow.svc.cluster.local:8200${NC}"
+echo -e "Authentication:     ${YELLOW}Kubernetes ServiceAccount Auth (Role: airflow)${NC}"
 echo -e "${GREEN}======================================================================${NC}"

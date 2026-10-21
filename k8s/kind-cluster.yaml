@@ -12,8 +12,4 @@ nodes:
   - containerPort: 30555
     hostPort: 5555
     protocol: TCP
-  # Map host port 8081 to NodePort 30081 for Keycloak
-  - containerPort: 30081
-    hostPort: 8081
-    protocol: TCP
 

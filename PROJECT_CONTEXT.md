@@ -57,16 +57,21 @@ All core services run within the local KinD cluster (`airflow-local`) under the 
 | :--- | :--- | :--- | :--- |
 | **Airflow Web UI** | React Frontend & API Server | [http://localhost:8080](http://localhost:8080) | `airflow-webserver:8080` / `airflow-api-server:8080` |
 | **Keycloak IAM** | Identity Provider / SSO | [http://localhost:8081](http://localhost:8081) | `keycloak.airflow.svc.cluster.local:8080` |
+| **phpLDAPadmin** | Enterprise LDAP Web GUI | [http://localhost:8082](http://localhost:8082) | N/A (Admin: `cn=admin,dc=example,dc=org` / `admin`) |
+| **OpenLDAP Server** | Corporate Active Directory Simulator | `ldap://localhost:389` | `openldap.airflow.svc.cluster.local:389` |
 | **HashiCorp Vault** | External Secrets Manager | [http://localhost:8200](http://localhost:8200) | `vault.airflow.svc.cluster.local:8200` |
-| **PostgreSQL 16** | Metadata DB | Cluster Internal | `airflow-postgresql.airflow.svc.cluster.local:5432` |
-| **Redis 7.2** | Celery Broker | Cluster Internal | `airflow-redis.airflow.svc.cluster.local:6379` |
+| **MinIO Console** | S3 Remote Log Storage UI | [http://localhost:9001](http://localhost:9001) | N/A (User: `minioadmin` / `minioadmin`) |
+| **MinIO S3 API** | S3 API Endpoint | [http://localhost:9000](http://localhost:9000) | `s3.airflow.svc.cluster.local:9000` |
+| **PostgreSQL 16** | Metadata DB | Cluster Internal | `postgres.airflow.svc.cluster.local:5432` |
+| **Redis 7.2** | Celery Broker | Cluster Internal | `redis.airflow.svc.cluster.local:6379` |
 | **Gmail Alerts** | Outbound Failure SMTP | Outbound | `smtp.gmail.com:587` (STARTTLS) |
 
 ---
 
 ## 3. Credentials & RBAC Access Matrix
 
-### Airflow Web UI Logins (via Keycloak SSO):
+### Enterprise Users (Sourced from OpenLDAP, Federated via Keycloak SSO):
+Users are **stored exclusively in OpenLDAP** (`dc=example,dc=org`) and federated automatically into Keycloak. Keycloak has **no manual user entries** other than the breakglass admin.
 To log in, visit [http://localhost:8080](http://localhost:8080) and click **"Sign in with keycloak"**.
 
 | Username | Password | AD Group (`aid-<keyword>-auth`) | Owned DAG ID | Access Level |
@@ -77,8 +82,9 @@ To log in, visit [http://localhost:8080](http://localhost:8080) and click **"Sig
 | `user_logistics` | `Logistics-lab-1` | `aid-logistics-auth` | `logistics_fleet_monitoring` | Owner (read, edit, trigger, delete) |
 | `user_analytics` | `Analytics-lab-1` | `aid-analytics-auth` | `analytics_daily_etl` | Owner (read, edit, trigger, delete) |
 
-### Administrative Backdoors:
-- **Break-glass Local DB Admin**: `breakglass` / `ChangeMeInSecret123!` (Direct Airflow database account, bypasses Keycloak).
+### Administrative Backdoors & Directory Management:
+- **phpLDAPadmin Web GUI**: [http://localhost:8082](http://localhost:8082) (Login DN: `cn=admin,dc=example,dc=org` | Pass: `admin`). Used to visually create new users, add them to AD groups, and delete employees.
+- **Break-glass Local DB Admin**: `breakglass` / `ChangeMeInSecret123!` (Direct Airflow database account, bypasses Keycloak/LDAP).
 - **Keycloak Admin Console**: `admin` / `admin` at [http://localhost:8081](http://localhost:8081).
 
 ---

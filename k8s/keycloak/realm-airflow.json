@@ -69,6 +69,108 @@
       ]
     }
   ],
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [
+      {
+        "id": "openldap-provider",
+        "name": "openldap",
+        "providerId": "ldap",
+        "subComponents": {
+          "org.keycloak.storage.ldap.mappers.LDAPStorageMapper": [
+            {
+              "id": "openldap-groups-mapper",
+              "name": "groups",
+              "providerId": "group-ldap-mapper",
+              "config": {
+                "groups.dn": ["ou=groups,dc=example,dc=org"],
+                "group.name.ldap.attribute": ["cn"],
+                "group.object.classes": ["groupOfNames"],
+                "preserve.group.inheritance": ["false"],
+                "ignore.missing.groups": ["false"],
+                "membership.ldap.attribute": ["member"],
+                "membership.attribute.type": ["DN"],
+                "membership.user.ldap.attribute": ["uid"],
+                "mode": ["READ_ONLY"],
+                "user.roles.retrieve.strategy": ["LOAD_GROUPS_BY_MEMBER_ATTRIBUTE"],
+                "groups.path": ["/"],
+                "drop.non.existing.groups.during.sync": ["false"]
+              }
+            },
+            {
+              "id": "openldap-username-mapper",
+              "name": "username",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["uid"],
+                "is.mandatory.in.ldap": ["true"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["false"],
+                "user.model.attribute": ["username"]
+              }
+            },
+            {
+              "id": "openldap-first-name-mapper",
+              "name": "first name",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["cn"],
+                "is.mandatory.in.ldap": ["true"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["true"],
+                "user.model.attribute": ["firstName"]
+              }
+            },
+            {
+              "id": "openldap-last-name-mapper",
+              "name": "last name",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["sn"],
+                "is.mandatory.in.ldap": ["true"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["true"],
+                "user.model.attribute": ["lastName"]
+              }
+            },
+            {
+              "id": "openldap-email-mapper",
+              "name": "email",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": ["mail"],
+                "is.mandatory.in.ldap": ["false"],
+                "read.only": ["true"],
+                "always.read.value.from.ldap": ["false"],
+                "user.model.attribute": ["email"]
+              }
+            }
+          ]
+        },
+        "config": {
+          "enabled": ["true"],
+          "priority": ["0"],
+          "editMode": ["READ_ONLY"],
+          "syncRegistrations": ["false"],
+          "vendor": ["other"],
+          "usernameLDAPAttribute": ["uid"],
+          "rdnLDAPAttribute": ["uid"],
+          "uuidLDAPAttribute": ["entryUUID"],
+          "userObjectClasses": ["inetOrgPerson, organizationalPerson"],
+          "connectionUrl": ["ldap://airflow-openldap:389"],
+          "usersDn": ["ou=users,dc=example,dc=org"],
+          "authType": ["simple"],
+          "bindDn": ["cn=admin,dc=example,dc=org"],
+          "bindCredential": ["admin"],
+          "searchScope": ["1"],
+          "validatePasswordPolicy": ["false"],
+          "trustEmail": ["true"],
+          "connectionPooling": ["true"],
+          "pagination": ["true"],
+          "batchSizeForSync": ["1000"]
+        }
+      }
+    ]
+  },
   "users": [
     {
       "username": "breakglass",
@@ -77,58 +179,8 @@
       "firstName": "Break",
       "lastName": "Glass",
       "credentials": [{ "type": "password", "value": "ChangeMeInSecret123!", "temporary": false }],
-      "realmRoles": ["Admin"],
+      "realmRoles": ["Admin", "default-roles-airflow"],
       "groups": ["/airflow-admins"]
-    },
-    {
-      "username": "alice",
-      "enabled": true,
-      "email": "alice@example.com",
-      "firstName": "Alice",
-      "lastName": "Admin",
-      "credentials": [{ "type": "password", "value": "Alice-lab-1", "temporary": false }],
-      "realmRoles": ["Admin"],
-      "groups": ["/airflow-admins"]
-    },
-    {
-      "username": "user_finance",
-      "enabled": true,
-      "email": "user_finance@example.com",
-      "firstName": "Finance",
-      "lastName": "Owner",
-      "credentials": [{ "type": "password", "value": "Finance-lab-1", "temporary": false }],
-      "realmRoles": ["aid-finance-auth"],
-      "groups": ["/aid-finance-auth"]
-    },
-    {
-      "username": "user_marketing",
-      "enabled": true,
-      "email": "user_marketing@example.com",
-      "firstName": "Marketing",
-      "lastName": "Owner",
-      "credentials": [{ "type": "password", "value": "Marketing-lab-1", "temporary": false }],
-      "realmRoles": ["aid-marketing-auth"],
-      "groups": ["/aid-marketing-auth"]
-    },
-    {
-      "username": "user_logistics",
-      "enabled": true,
-      "email": "user_logistics@example.com",
-      "firstName": "Logistics",
-      "lastName": "Owner",
-      "credentials": [{ "type": "password", "value": "Logistics-lab-1", "temporary": false }],
-      "realmRoles": ["aid-logistics-auth"],
-      "groups": ["/aid-logistics-auth"]
-    },
-    {
-      "username": "user_analytics",
-      "enabled": true,
-      "email": "user_analytics@example.com",
-      "firstName": "Analytics",
-      "lastName": "Owner",
-      "credentials": [{ "type": "password", "value": "Analytics-lab-1", "temporary": false }],
-      "realmRoles": ["aid-analytics-auth"],
-      "groups": ["/aid-analytics-auth"]
     }
   ]
 }

@@ -1,0 +1,112 @@
+# ==============================================================================
+# Enterprise Directory Structure & Department AD Groups (OpenLDAP Seed)
+# Simulates Active Directory (dc=example,dc=org)
+# ==============================================================================
+
+# 1. Organizational Units
+dn: ou=users,dc=example,dc=org
+objectClass: top
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,dc=example,dc=org
+objectClass: top
+objectClass: organizationalUnit
+ou: groups
+
+# 2. Enterprise Users (Stored in LDAP, NOT Keycloak)
+dn: uid=alice,ou=users,dc=example,dc=org
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: alice
+cn: Alice Admin
+sn: Admin
+givenName: Alice
+mail: alice@example.com
+userPassword: Alice-lab-1
+
+dn: uid=user_finance,ou=users,dc=example,dc=org
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: user_finance
+cn: Finance Owner
+sn: Owner
+givenName: Finance
+mail: user_finance@example.com
+userPassword: Finance-lab-1
+
+dn: uid=user_marketing,ou=users,dc=example,dc=org
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: user_marketing
+cn: Marketing Owner
+sn: Owner
+givenName: Marketing
+mail: user_marketing@example.com
+userPassword: Marketing-lab-1
+
+dn: uid=user_logistics,ou=users,dc=example,dc=org
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: user_logistics
+cn: Logistics Owner
+sn: Owner
+givenName: Logistics
+mail: user_logistics@example.com
+userPassword: Logistics-lab-1
+
+dn: uid=user_analytics,ou=users,dc=example,dc=org
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: user_analytics
+cn: Analytics Owner
+sn: Owner
+givenName: Analytics
+mail: user_analytics@example.com
+userPassword: Analytics-lab-1
+
+# 3. Active Directory Security Groups (Mapped automatically into Airflow RBAC)
+dn: cn=airflow-admins,ou=groups,dc=example,dc=org
+objectClass: top
+objectClass: groupOfNames
+cn: airflow-admins
+description: Super Admins Group (Access to All DAGs)
+member: uid=alice,ou=users,dc=example,dc=org
+
+dn: cn=aid-finance-auth,ou=groups,dc=example,dc=org
+objectClass: top
+objectClass: groupOfNames
+cn: aid-finance-auth
+description: Finance Team Group (Access to Finance DAGs)
+member: uid=user_finance,ou=users,dc=example,dc=org
+
+dn: cn=aid-marketing-auth,ou=groups,dc=example,dc=org
+objectClass: top
+objectClass: groupOfNames
+cn: aid-marketing-auth
+description: Marketing Team Group (Access to Marketing DAGs)
+member: uid=user_marketing,ou=users,dc=example,dc=org
+
+dn: cn=aid-logistics-auth,ou=groups,dc=example,dc=org
+objectClass: top
+objectClass: groupOfNames
+cn: aid-logistics-auth
+description: Logistics Team Group (Access to Logistics DAGs)
+member: uid=user_logistics,ou=users,dc=example,dc=org
+
+dn: cn=aid-analytics-auth,ou=groups,dc=example,dc=org
+objectClass: top
+objectClass: groupOfNames
+cn: aid-analytics-auth
+description: Analytics Team Group (Access to Analytics DAGs)
+member: uid=user_analytics,ou=users,dc=example,dc=org
