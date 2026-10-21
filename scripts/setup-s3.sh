@@ -32,12 +32,18 @@ if ! docker ps --filter "name=^/${MINIO_CONTAINER}$" --format '{{.Names}}' | gre
             --restart unless-stopped \
             -p "${MINIO_PORT}:9000" \
             -p "${MINIO_CONSOLE_PORT}:9001" \
+            -v airflow-minio-data:/data \
             -e MINIO_ROOT_USER="${MINIO_USER}" \
             -e MINIO_ROOT_PASSWORD="${MINIO_PASS}" \
             cleanstart/minio:latest server /data --console-address ":9001"
     fi
 else
     echo "MinIO container '${MINIO_CONTAINER}' is already running."
+fi
+
+# Connect MinIO to KinD network if present
+if docker network inspect kind >/dev/null 2>&1; then
+    docker network connect kind "${MINIO_CONTAINER}" 2>/dev/null || true
 fi
 
 echo "Waiting for MinIO to be ready at http://localhost:${MINIO_PORT}..."

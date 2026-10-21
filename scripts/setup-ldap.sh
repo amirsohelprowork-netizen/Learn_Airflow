@@ -31,6 +31,8 @@ if ! docker ps --filter "name=^/${LDAP_CONTAINER}$" --format '{{.Names}}' | grep
             --name "${LDAP_CONTAINER}" \
             --restart unless-stopped \
             -p "${LDAP_PORT}:389" \
+            -v airflow-ldap-data:/var/lib/ldap \
+            -v airflow-ldap-config:/etc/ldap/slapd.d \
             -e LDAP_ORGANISATION="Example Inc." \
             -e LDAP_DOMAIN="example.org" \
             -e LDAP_ADMIN_PASSWORD="admin" \

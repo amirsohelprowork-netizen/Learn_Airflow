@@ -33,7 +33,7 @@ usage() {
     echo "  test-auth      Verify Keycloak OIDC token issuance and user claims"
     echo "  logs [pod]     Tail logs for worker, scheduler, or keycloak (default: worker)"
     echo "  vault [action] Manage external HashiCorp Vault (status, ui, start, seed)"
-    echo "  ldap [action]  Manage Enterprise OpenLDAP (status, ui, add-user, list-users, list-groups, sync)"
+    echo "  ldap [action]  Manage Enterprise OpenLDAP (status, ui, add-user, list-users, list-groups, backup, restore, sync)"
     echo "  help           Display this help screen"
 }
 
@@ -384,8 +384,32 @@ EOF
                     echo -e "${RED}LDAP provider not found in Keycloak realm 'airflow'.${NC}"
                 fi
                 ;;
+            backup)
+                echo -e "${CYAN}Backing up OpenLDAP directory to MinIO S3 (s3://airflow-backups/ldap/)...${NC}"
+                docker exec airflow-openldap ldapsearch -x -H ldap://localhost -b "dc=example,dc=org" -D "cn=admin,dc=example,dc=org" -w admin "(objectclass=*)" | \
+                kubectl exec -i -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- python3 -c '
+import sys, boto3, datetime
+content = sys.stdin.read().encode("utf-8")
+ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+s3 = boto3.client("s3", endpoint_url="http://s3.airflow.svc.cluster.local:9000", aws_access_key_id="minioadmin", aws_secret_access_key="minioadmin")
+s3.put_object(Bucket="airflow-backups", Key="ldap/ldap-backup-latest.ldif", Body=content)
+s3.put_object(Bucket="airflow-backups", Key=f"ldap/archive/ldap-backup-{ts}.ldif", Body=content)
+print(f"\033[0;32m[SUCCESS] Backed up {len(content)} bytes to s3://airflow-backups/ldap/ldap-backup-latest.ldif and archive/ldap-backup-{ts}.ldif\033[0m")
+'
+                ;;
+            restore)
+                echo -e "${CYAN}Restoring OpenLDAP directory from MinIO S3 (s3://airflow-backups/ldap/ldap-backup-latest.ldif)...${NC}"
+                kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- python3 -c '
+import boto3
+s3 = boto3.client("s3", endpoint_url="http://s3.airflow.svc.cluster.local:9000", aws_access_key_id="minioadmin", aws_secret_access_key="minioadmin")
+obj = s3.get_object(Bucket="airflow-backups", Key="ldap/ldap-backup-latest.ldif")
+print(obj["Body"].read().decode("utf-8"))
+' | docker exec -i airflow-openldap ldapadd -c -x -D "cn=admin,dc=example,dc=org" -w admin 2>&1 | grep -v "Already exists" || true
+                echo -e "${GREEN}[SUCCESS] LDAP directory restored from S3.${NC}"
+                "${ROOT_DIR}/ctl" ldap sync
+                ;;
             *)
-                echo -e "${RED}Unknown ldap action: ${action}. Use: status, ui, start, add-user, list-users, list-groups, sync${NC}"
+                echo -e "${RED}Unknown ldap action: ${action}. Use: status, ui, start, add-user, list-users, list-groups, backup, restore, sync${NC}"
                 exit 1
                 ;;
         esac

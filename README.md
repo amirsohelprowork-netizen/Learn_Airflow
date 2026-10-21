@@ -549,6 +549,9 @@ cd Learn_Airflow
 
 ## Access Endpoints & Credentials
 
+> [!TIP]
+> For a full dedicated cheatsheet of all URLs, credentials, team personas, and architecture diagrams, see [ENDPOINTS.md](file:///workspace/Learn_Airflow/ENDPOINTS.md).
+
 ### Secure Ingress Endpoints (HTTPS / TLS)
 
 | Service | Short Domain (`/etc/hosts`) | Instant Wildcard URL (Zero Config) | Protocol | Certificate |
@@ -625,6 +628,8 @@ lab lifecycle.
 | `./ctl ldap list-users` | List all users in the LDAP directory |
 | `./ctl ldap list-groups` | List all AD groups and their members |
 | `./ctl ldap add-user` | Create a new LDAP user and add to an AD group |
+| `./ctl ldap backup` | Dump LDAP directory and archive snapshot to MinIO S3 (`s3://airflow-backups/ldap/`) |
+| `./ctl ldap restore` | Restore LDAP directory from latest MinIO S3 backup and trigger Keycloak sync |
 | `./ctl ldap sync` | Trigger Keycloak full LDAP sync |
 
 A `Makefile` wrapper is also available for common commands (`make start`,
