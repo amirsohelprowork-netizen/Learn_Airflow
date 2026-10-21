@@ -20,7 +20,15 @@ echo -e "${CYAN}=== Setting up Observability Stack (Prometheus + Grafana) ===${N
 echo "Deploying Prometheus..."
 kubectl apply -f "${ROOT_DIR}/k8s/observability/prometheus.yaml"
 
-# Apply Grafana deployment, datasources, and pre-baked dashboards
+# Sync Gmail SMTP secret to observability namespace for Grafana alerting
+if kubectl get secret airflow-smtp-secret -n airflow >/dev/null 2>&1; then
+    PASS=$(kubectl get secret airflow-smtp-secret -n airflow -o jsonpath='{.data.password}' | base64 -d)
+    kubectl create secret generic grafana-smtp-secret \
+        --from-literal=password="${PASS}" \
+        -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+fi
+
+# Apply Grafana deployment, datasources, alerting rules, and dashboards
 echo "Deploying Grafana..."
 kubectl apply -f "${ROOT_DIR}/k8s/observability/grafana.yaml"
 

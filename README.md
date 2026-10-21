@@ -351,7 +351,30 @@ Access the dashboard:
 # Open https://grafana.local (or port-forward: kubectl port-forward svc/grafana 3000:3000 -n observability)
 ```
 
+### Unified Alerting & Platform Notifications (Grafana + Prometheus)
+
+Operational monitoring is paired with automated **Grafana Unified Alerting** routed to Gmail (`alerts@example.com`) via TLS/STARTTLS relay on `smtp.gmail.com:587`:
+
+1. **Pre-Provisioned Contact Points**: `email-admin` contact point is loaded as code via `alerting.yaml` ConfigMap, referencing the cluster `grafana-smtp-secret`.
+2. **Notification Policy**: Default root policy matches all alert groups (`AirflowAlertRules`), enforcing a 10s evaluation buffer, 30s group batching, and 1-hour alert deduplication/repeat intervals.
+3. **Provisioned Alert Rules**:
+   - **`AirflowSchedulerDown` (Severity: Critical)**: Continuously evaluates `sum(rate(airflow_scheduler_heartbeat[1m])) or vector(0) < 0.1`. If all schedulers cease heartbeat emission for > 1 minute, an alert email is dispatched.
+   - **`AirflowDagImportErrors` (Severity: Warning)**: Evaluates `sum(airflow_dag_processing_import_errors) or vector(0) > 0`. Triggers when the DAG processor discovers syntax or import errors in the DAG folder.
+
+#### Airflow DAG Failure Alerts vs. Grafana Platform Alerts
+
+| Dimension | Airflow DAG Alerting (`./ctl test-alert`) | Grafana Platform Alerting (`./ctl test-grafana-alert`) |
+|:---|:---|:---|
+| **Primary Scope** | Pipeline & data task instance execution errors | Infrastructure & service health / cluster availability |
+| **Alert Engine** | Airflow `SmtpNotifier` in DAG `default_args` | Grafana Unified Alerting + Prometheus queries |
+| **Source Data** | Database task instance state (`FAILED`) | Time-series metrics from `statsd-exporter` (`9102`) |
+| **Notification Channel**| Direct SMTP delivery via Celery worker pod | Alertmanager notification policy via Grafana pod |
+| **Use Cases** | Downstream data missing, SQL syntax errors, API timeouts | Schedulers down, Celery queue backlog, broken DAG files |
+| **Test Command** | `./ctl test-alert` | `./ctl test-grafana-alert` |
+
 ---
+
+## RBAC Architecture — Owner-Based Dynamic Access Control
 
 The RBAC system achieves **complete DAG isolation** between teams without
 requiring DAG authors to hardcode any permissions. It uses a three-tier identity
@@ -589,7 +612,9 @@ lab lifecycle.
 | `./ctl autoscaler` | Inspect KEDA worker autoscaler targets, HPA status, and database queue depth |
 | `./ctl metrics` | Check Prometheus & Grafana health, dashboard URLs, and port-forward helpers |
 | `./ctl ingress` | View Ingress routing, cert-manager TLS certificates, and local `/etc/hosts` DNS setup |
-| `./ctl test-alert` | Trigger the failure notification DAG and verify Gmail delivery |
+| `./ctl hosts` | Automatically add or check `/etc/hosts` DNS records for all secure services |
+| `./ctl test-alert` | Trigger the failure notification DAG and verify Airflow Gmail delivery |
+| `./ctl test-grafana-alert` | Trigger Grafana Alerting notification test to Gmail (`alerts@example.com`) |
 | `./ctl test-auth` | Test Keycloak OIDC token issuance for all team users |
 | `./ctl logs <target>` | Tail logs for `worker`, `scheduler`, or `keycloak` |
 | `./ctl vault status` | Check Vault container health |

@@ -8,6 +8,7 @@ data:
     apiVersion: 1
     datasources:
       - name: Prometheus
+        uid: prometheus-datasource
         type: prometheus
         access: proxy
         url: http://prometheus.observability.svc.cluster.local:9090
@@ -32,6 +33,143 @@ data:
         editable: true
         options:
           path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting
+  namespace: observability
+data:
+  alerting.yaml: |
+    apiVersion: 1
+    contactPoints:
+      - orgId: 1
+        name: email-admin
+        receivers:
+          - uid: email-admin-receiver
+            type: email
+            settings:
+              addresses: alerts@example.com
+              singleEmail: true
+    policies:
+      - orgId: 1
+        receiver: email-admin
+        group_by: ['alertname', 'grafana_folder']
+        group_wait: 10s
+        group_interval: 30s
+        repeat_interval: 1h
+    groups:
+      - orgId: 1
+        name: AirflowAlertRules
+        folder: Airflow Alerts
+        interval: 30s
+        rules:
+          - uid: airflow-scheduler-down
+            title: AirflowSchedulerDown
+            condition: B
+            data:
+              - refId: A
+                queryType: ''
+                relativeTimeRange:
+                  from: 120
+                  to: 0
+                datasourceUid: prometheus-datasource
+                model:
+                  editorMode: code
+                  expr: sum(rate(airflow_scheduler_heartbeat[1m])) or vector(0)
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  range: true
+                  refId: A
+              - refId: B
+                queryType: ''
+                relativeTimeRange:
+                  from: 120
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params:
+                          - 0.1
+                        type: lt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - A
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                  expression: A
+                  refId: B
+                  type: threshold
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 1m
+            annotations:
+              summary: "Airflow Scheduler heartbeat is missing"
+              description: "No heartbeat received from any Airflow scheduler for more than 1 minute. Schedulers may be down or crashing."
+            labels:
+              severity: critical
+          - uid: airflow-dag-import-errors
+            title: AirflowDagImportErrors
+            condition: B
+            data:
+              - refId: A
+                queryType: ''
+                relativeTimeRange:
+                  from: 120
+                  to: 0
+                datasourceUid: prometheus-datasource
+                model:
+                  editorMode: code
+                  expr: sum(airflow_dag_processing_import_errors) or vector(0)
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  range: true
+                  refId: A
+              - refId: B
+                queryType: ''
+                relativeTimeRange:
+                  from: 120
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params:
+                          - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - A
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                  expression: A
+                  refId: B
+                  type: threshold
+            noDataState: OK
+            execErrState: Error
+            for: 1m
+            annotations:
+              summary: "Airflow DAG processing import errors detected"
+              description: "DAG processor has detected syntax or import errors in one or more DAG files."
+            labels:
+              severity: warning
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -63,7 +201,7 @@ data:
           "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
           "targets": [
             {
-              "expr": "sum(rate(airflow_scheduler_heartbeat_count[1m])) or vector(1)",
+              "expr": "sum(rate(airflow_scheduler_heartbeat[1m])) or vector(1)",
               "legendFormat": "Heartbeats/sec",
               "refId": "A"
             }
@@ -189,6 +327,25 @@ spec:
               value: "true"
             - name: GF_AUTH_ANONYMOUS_ORG_ROLE
               value: "Admin"
+            - name: GF_SMTP_ENABLED
+              value: "true"
+            - name: GF_SMTP_HOST
+              value: "smtp.gmail.com:587"
+            - name: GF_SMTP_USER
+              value: "alerts@example.com"
+            - name: GF_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-smtp-secret
+                  key: password
+            - name: GF_SMTP_FROM_ADDRESS
+              value: "alerts@example.com"
+            - name: GF_SMTP_FROM_NAME
+              value: "Airflow Platform Alert"
+            - name: GF_SMTP_STARTTLS_POLICY
+              value: "OpportunisticStartTLS"
+            - name: GF_UNIFIED_ALERTING_ENABLED
+              value: "true"
           ports:
             - name: http
               containerPort: 3000
@@ -206,6 +363,8 @@ spec:
               mountPath: /etc/grafana/provisioning/dashboards
             - name: airflow-dashboard
               mountPath: /var/lib/grafana/dashboards
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
       volumes:
         - name: datasources
           configMap:
@@ -216,6 +375,9 @@ spec:
         - name: airflow-dashboard
           configMap:
             name: grafana-airflow-dashboard
+        - name: alerting
+          configMap:
+            name: grafana-alerting
 ---
 apiVersion: v1
 kind: Service

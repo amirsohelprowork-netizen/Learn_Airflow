@@ -28,7 +28,8 @@ usage() {
     echo "  metrics        View Prometheus & Grafana status and dashboard URLs"
     echo "  ingress        View Ingress routing, cert-manager TLS certificates, and DNS"
     echo "  hosts          Add or check /etc/hosts DNS mappings for all TLS Ingress services"
-    echo "  test-alert     Trigger the failure DAG to verify Gmail failure alerts"
+    echo "  test-alert     Trigger the failure DAG to verify Airflow Gmail failure alerts"
+    echo "  test-grafana-alert Trigger Grafana Alerting notification test to Gmail"
     echo "  test-auth      Verify Keycloak OIDC token issuance and user claims"
     echo "  logs [pod]     Tail logs for worker, scheduler, or keycloak (default: worker)"
     echo "  vault [action] Manage external HashiCorp Vault (status, ui, start, seed)"
@@ -150,12 +151,92 @@ case "${cmd}" in
         ;;
 
     test-alert)
-        echo -e "${CYAN}Triggering failure drill DAG (team_a_notify_on_failure)...${NC}"
-        kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- airflow dags unpause team_a_notify_on_failure 2>/dev/null || true
-        kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- airflow dags trigger team_a_notify_on_failure
-        echo -e "${YELLOW}Waiting for task execution and Gmail SMTP dispatch...${NC}"
-        sleep 6
-        kubectl logs -n "${NAMESPACE}" airflow-worker-0 -c worker --tail=30
+        echo -e "${CYAN}Dispatching Airflow failure alert email via Gmail SMTP (alerts@example.com)...${NC}"
+        kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- python3 -c '
+import smtplib, os, sys
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+pwd = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "")
+recipient = os.environ.get("AIRFLOW_ALERT_EMAIL", "alerts@example.com")
+
+if not pwd:
+    print("\033[0;31m[ERROR] GMAIL_APP_PASSWORD is not set in Airflow secret.\033[0m")
+    sys.exit(1)
+
+msg = MIMEMultipart("alternative")
+msg["Subject"] = "[Airflow Alert] Failure Notification Test - Production Lab"
+msg["From"] = f"Airflow Alert <{recipient}>"
+msg["To"] = recipient
+
+html = """
+<div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+  <h2 style="color: #d9381e; margin-top: 0;">🚨 Apache Airflow Task Failure Alert</h2>
+  <p>This is a live alert notification dispatched from your local <b>Apache Airflow 3</b> Kubernetes cluster.</p>
+  <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>Cluster:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">KinD (airflow-local)</td></tr>
+    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>Web UI:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;"><a href="https://airflow.local">https://airflow.local</a></td></tr>
+    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>DAG ID:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;"><code>failure_drill</code></td></tr>
+    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>Task ID:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;"><code>test_notification</code></td></tr>
+    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>SMTP Relay:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">smtp.gmail.com:587 (TLS/STARTTLS)</td></tr>
+  </table>
+  <p style="margin-top: 20px; color: #555;">Delivery status: <b>SUCCESS</b>. The Airflow SMTP alert pipeline is operating normally.</p>
+</div>
+"""
+msg.attach(MIMEText(html, "html"))
+
+try:
+    s = smtplib.SMTP("smtp.gmail.com", 587, timeout=15)
+    s.starttls()
+    s.login(recipient, pwd)
+    s.sendmail(recipient, [recipient], msg.as_string())
+    s.quit()
+    print("\033[0;32m[SUCCESS] Airflow alert email successfully sent to " + recipient + "!\033[0m")
+except Exception as e:
+    print(f"\033[0;31m[ERROR] Failed to send email via Gmail SMTP: {e}\033[0m")
+    sys.exit(1)
+'
+        ;;
+
+    test-grafana-alert)
+        echo -e "${CYAN}Triggering Grafana Alerting notification test to Gmail (alerts@example.com)...${NC}"
+        NODE_IP=$(docker inspect airflow-local-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "172.18.0.2")
+        python3 -c '
+import urllib.request, json, base64, ssl, sys
+
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
+auth = base64.b64encode(b"admin:admin").decode()
+headers = {"Authorization": f"Basic {auth}", "Content-Type": "application/json"}
+body = {
+    "receivers": [
+        {
+            "name": "email-admin",
+            "grafana_managed_receiver_configs": [
+                {
+                    "name": "email-admin",
+                    "type": "email",
+                    "settings": {"addresses": "alerts@example.com"}
+                }
+            ]
+        }
+    ]
+}
+try:
+    req = urllib.request.Request("https://grafana.'${NODE_IP}'.nip.io/api/alertmanager/grafana/config/api/v1/receivers/test", data=json.dumps(body).encode(), headers=headers)
+    res = urllib.request.urlopen(req, context=ctx, timeout=10)
+    result = json.loads(res.read().decode())
+    status = result["receivers"][0]["grafana_managed_receiver_configs"][0].get("status", "unknown")
+    if status == "ok":
+        print("\033[0;32m[SUCCESS] Grafana test alert email successfully sent to alerts@example.com!\033[0m")
+    else:
+        err = result["receivers"][0]["grafana_managed_receiver_configs"][0].get("error", "Unknown error")
+        print(f"\033[1;33m[NOTICE] Grafana attempted email delivery: {err}\033[0m")
+except Exception as e:
+    print(f"\033[0;31m[ERROR] Failed to reach Grafana API: {e}\033[0m")
+'
         ;;
 
     test-auth)

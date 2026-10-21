@@ -29,13 +29,12 @@ status: ## Show cluster health, pod status, and access URLs
 build: ## Build the custom Airflow 3 Docker image
 	@docker build -t learn-airflow:3.3.2-python3.12 .
 
-test-alert: ## Trigger the failure notification DAG to test Gmail alerts
-	@echo "Triggering failure test DAG: team_a_notify_on_failure..."
-	@kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- airflow dags unpause team_a_notify_on_failure 2>/dev/null || true
-	@kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- airflow dags trigger team_a_notify_on_failure
-	@echo "Task triggered. Checking worker logs for SmtpNotifier delivery..."
-	@sleep 6
-	@kubectl logs -n airflow airflow-worker-0 -c worker --tail=30
+test-alert: ## Trigger Airflow task failure alert email test to Gmail
+	@./ctl test-alert
+
+test-grafana-alert: ## Trigger Grafana Alerting notification test to Gmail
+	@./ctl test-grafana-alert
+
 
 test-auth: ## Test Keycloak token issuance and userinfo claims for all 4 team AD users
 	@./ctl test-auth
