@@ -36,7 +36,7 @@ output "openldap_container_name" {
 output "ready" {
   description = "Flag indicating external Docker infrastructure is provisioned"
   value       = true
-  depends_on  = [
+  depends_on = [
     null_resource.artifactory_setup,
     null_resource.vault_setup,
     null_resource.minio_buckets

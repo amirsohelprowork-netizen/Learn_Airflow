@@ -33,11 +33,11 @@ output "credentials_summary" {
     artifactory    = "User: admin | Pass: admin123"
     breakglass_ui  = "User: breakglass | Pass: (sensitive variable breakglass_password)"
     personas = {
-      alice_superadmin   = "User: alice | Pass: Alice-lab-1"
-      finance_owner      = "User: user_finance | Pass: Finance-lab-1"
-      marketing_owner    = "User: user_marketing | Pass: Marketing-lab-1"
-      logistics_owner    = "User: user_logistics | Pass: Logistics-lab-1"
-      analytics_owner    = "User: user_analytics | Pass: Analytics-lab-1"
+      alice_superadmin = "User: alice | Pass: Alice-lab-1"
+      finance_owner    = "User: user_finance | Pass: Finance-lab-1"
+      marketing_owner  = "User: user_marketing | Pass: Marketing-lab-1"
+      logistics_owner  = "User: user_logistics | Pass: Logistics-lab-1"
+      analytics_owner  = "User: user_analytics | Pass: Analytics-lab-1"
     }
   }
 }

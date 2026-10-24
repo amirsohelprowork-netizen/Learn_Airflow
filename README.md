@@ -524,7 +524,7 @@ The table below provides a 1-to-1 mapping from the local lab tools used in this 
   spec:
     scaleTargetRef:
       apiVersion: apps/v1
-      kind: StatefulSet
+      kind: Deployment
       name: airflow-worker
     minReplicaCount: 2
     maxReplicaCount: 30

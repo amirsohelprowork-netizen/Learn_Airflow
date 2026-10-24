@@ -155,6 +155,14 @@ class TestClusterPolicyEngine(unittest.TestCase):
         self.assertIsNotNone(task.retry_delay)
         self.assertIsNotNone(task.on_failure_callback)
 
+    def test_local_settings_module_integrity(self):
+        """Verify airflow_local_settings module imports cleanly and exposes expected symbols."""
+        import airflow_local_settings
+        self.assertTrue(hasattr(airflow_local_settings, "os"))
+        self.assertTrue(hasattr(airflow_local_settings, "VALID_DEPARTMENTS"))
+        self.assertTrue(callable(airflow_local_settings.dag_policy))
+        self.assertTrue(callable(airflow_local_settings.task_policy))
+
 
 class TestDagBagIntegration(unittest.TestCase):
     """Airflow DagBag integration test verifying zero parse errors across all DAGs."""

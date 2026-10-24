@@ -103,9 +103,9 @@ resource "docker_container" "redis" {
 
 # 4. HashiCorp Vault (External Secrets Engine)
 resource "docker_container" "vault" {
-  name         = "airflow-vault"
-  image        = "hashicorp/vault:1.15.6"
-  restart      = "unless-stopped"
+  name    = "airflow-vault"
+  image   = "hashicorp/vault:1.15.6"
+  restart = "unless-stopped"
   capabilities {
     add = ["IPC_LOCK"]
   }
