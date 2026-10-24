@@ -37,6 +37,28 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 22:35 — restore GitHub Actions workflow configured for all branch triggers
+
+**Command**
+
+```bash
+git add .github/workflows/ci.yml
+```
+
+**Result:** worked
+
+**Why:** Restored `.github/workflows/ci.yml` with triggers on push across all branches (including `local-pipeline-fixes`), pull requests, and manual `workflow_dispatch`, enabling GitHub Actions CI test execution and live troubleshooting.
+
+**Next command**
+
+```bash
+git commit -m "ci: restore GitHub Actions workflow configured for branch execution"
+```
+
+**Why the next command worked:** Committed workflow onto branch `local-pipeline-fixes`.
+
+---
+
 ### 2026-10-24 22:31 — commit local pipeline and pre-commit hook implementation
 
 **Command**
