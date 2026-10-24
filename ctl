@@ -163,9 +163,9 @@ case "${cmd}" in
 
     test)
         echo -e "${CYAN}Running Enterprise DAG Governance & CI/CD Quality Gate Tests...${NC}"
-        if kubectl get deployment airflow-scheduler -n "${NAMESPACE}" >/dev/null 2>&1 && kubectl get pod -l component=scheduler -n "${NAMESPACE}" --field-selector=status.phase=Running 2>/dev/null | grep -q airflow; then
-            echo -e "${GREEN}Executing tests inside live airflow-scheduler pod...${NC}"
-            kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- python3 -m unittest /opt/airflow/tests/test_dag_governance.py
+        if kubectl get deployment airflow-dag-processor -n "${NAMESPACE}" >/dev/null 2>&1 && kubectl get pod -l component=dag-processor -n "${NAMESPACE}" --field-selector=status.phase=Running 2>/dev/null | grep -q airflow; then
+            echo -e "${GREEN}Executing tests inside live airflow-dag-processor pod (Airflow 3 DagBag)...${NC}"
+            kubectl exec -n "${NAMESPACE}" deploy/airflow-dag-processor -c dag-processor -- python3 /opt/airflow/dags/repo/tests/test_dag_governance.py
         elif docker images --format '{{.Repository}}:{{.Tag}}' | grep -qx "learn-airflow:3.3.2-python3.12"; then
             echo -e "${GREEN}Executing tests inside custom Airflow 3 Docker container...${NC}"
             docker run --rm \

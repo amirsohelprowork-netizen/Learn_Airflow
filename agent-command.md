@@ -37,6 +37,138 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 23:14 — verify Keycloak OIDC authentication and team AD groups mapping
+
+**Command**
+
+```bash
+./ctl test-auth
+```
+
+**Result:** worked
+
+**Why:** Verified all 6 personas (`alice`, `breakglass`, `user_finance`, `user_marketing`, `user_logistics`, `user_analytics`) authenticate against Keycloak OIDC and are correctly mapped to their respective enterprise AD groups.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** Quality gate verified.
+
+---
+
+### 2026-10-24 23:14 — execute enterprise DAG governance & quality gate tests against live dag-processor
+
+**Command**
+
+```bash
+./ctl test
+```
+
+**Result:** worked
+
+**Why:** Successfully ran the enterprise governance test suite inside the live `airflow-dag-processor` pod (`Ran 7 tests in 1.346s, OK`), validating all DAG structure, tagging, team pools, and failure callbacks.
+
+**Next command**
+
+```bash
+./ctl test-auth
+```
+
+**Why the next command worked:** Continued end-to-end integration verification across authentication layer.
+
+---
+
+### 2026-10-24 23:14 — verify overall cluster, observability, autoscaler, and external infrastructure status
+
+**Command**
+
+```bash
+./ctl status
+```
+
+**Result:** worked
+
+**Why:** Confirmed all compute pods (`api-server` x2, `scheduler` x2, `dag-processor`, `worker`, `triggerer`, `flower`, `statsd`), observability pods (`prometheus`, `grafana`), KEDA autoscaler, and 8 external Docker containers are fully healthy and running.
+
+**Next command**
+
+```bash
+./ctl test
+```
+
+**Why the next command worked:** Verified operational test suite on live cluster.
+
+---
+
+### 2026-10-24 23:10 — update ./ctl test to target Airflow 3 dag-processor component
+
+**Command**
+
+```bash
+# Update ctl script to target deploy/airflow-dag-processor instead of deploy/airflow-scheduler
+```
+
+**Result:** worked
+
+**Why:** In Apache Airflow 3.x, DAG processing is handled exclusively by the `dag-processor` service rather than the scheduler. Pointing `./ctl test` at `deploy/airflow-dag-processor` where git-sync mounts `/opt/airflow/dags/repo/tests/test_dag_governance.py` allows direct in-cluster DagBag verification.
+
+**Next command**
+
+```bash
+./ctl test
+```
+
+**Why the next command worked:** Enabled automated governance testing against the active Airflow 3 DagBag.
+
+---
+
+### 2026-10-24 23:08 — update gitSync repo in values.yaml to active GitHub repository and branch
+
+**Command**
+
+```bash
+# Update values.yaml: dags.gitSync.repo to git@github.com:amirsohelprowork-netizen/Learn_Airflow.git and branch to local-pipeline-fixes
+```
+
+**Result:** worked
+
+**Why:** Replaced dummy template repository (`git@github.com:your-org/airflow-production-lab.git`) with the user's repository and `local-pipeline-fixes` branch. Enabled git-sync sidecars to clone DAGs dynamically using the mounted SSH key.
+
+**Next command**
+
+```bash
+kubectl rollout restart deployment airflow-dag-processor airflow-worker airflow-triggerer -n airflow
+```
+
+**Why the next command worked:** Picked up the updated Helm configuration and restarted pods with valid git credentials.
+
+---
+
+### 2026-10-24 23:05 — resolve observability namespace dependency in ingress scripts
+
+**Command**
+
+```bash
+kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+```
+
+**Result:** worked
+
+**Why:** Fixed `namespaces "observability" not found` error during `./ctl start` / `scripts/setup-ingress.sh` when applying `k8s/ingress/airflow-ingress.yaml`, which defines ingress rules across both `airflow` and `observability` namespaces.
+
+**Next command**
+
+```bash
+./ctl status
+```
+
+**Why the next command worked:** Validated that both `airflow-ingress` and `observability-ingress` were successfully created and routed by NGINX Ingress Controller.
+
+---
+
 ### 2026-10-24 22:54 — check local KinD cluster and Docker container deployment status
 
 **Command**

@@ -256,8 +256,8 @@ dags:
     enabled: false
   gitSync:
     enabled: true
-    repo: "git@github.com:your-org/airflow-production-lab.git"
-    branch: "main"
+    repo: "git@github.com:amirsohelprowork-netizen/Learn_Airflow.git"
+    branch: "local-pipeline-fixes"
     rev: "HEAD"
     depth: 1
     subPath: "dags"

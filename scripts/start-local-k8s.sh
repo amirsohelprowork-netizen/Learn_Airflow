@@ -26,6 +26,8 @@ kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
 
 echo "=== 3. Setting Up Namespace & ConfigMaps ==="
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace keda --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap airflow-webserver-config \
     --from-file=webserver_config.py="${ROOT_DIR}/config/webserver_config.py" \
     -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -

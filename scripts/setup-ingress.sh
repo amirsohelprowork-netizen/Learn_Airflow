@@ -50,6 +50,7 @@ kubectl wait --namespace ingress-nginx \
     --timeout=120s 2>/dev/null || true
 
 echo -e "${CYAN}=== 4. Applying ClusterIssuer & Ingress Resources ===${NC}"
+kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${ROOT_DIR}/k8s/ingress/cluster-issuer.yaml"
 kubectl apply -f "${ROOT_DIR}/k8s/ingress/airflow-ingress.yaml"
 
