@@ -5,7 +5,7 @@
 ###############################################################################
 
 # --- Global & Image Configuration ---
-airflowVersion: "3.2.2"
+airflowVersion: "3.3.2"
 defaultAirflowRepository: "learn-airflow"
 defaultAirflowTag: "3.3.2-python3.12"
 
@@ -61,6 +61,9 @@ config:
     statsd_port: 9125
     statsd_prefix: "airflow"
 
+  celery:
+    flower_basic_auth: "admin:admin"
+
   api:
     auth_backends: "airflow.api.auth.backend.session"
 
@@ -103,8 +106,6 @@ extraEnv: |
         name: airflow-smtp-secret
         key: password
         optional: true
-  - name: AIRFLOW_CONN_SMTP_DEFAULT
-    value: "smtp://alerts%40example.com:$(GMAIL_APP_PASSWORD)@smtp.gmail.com:587?from_email=alerts%40example.com&disable_ssl=1&disable_tls="
   - name: AIRFLOW_ALERT_EMAIL
     value: "alerts@example.com"
   - name: KEYCLOAK_INTERNAL_URL
@@ -120,19 +121,10 @@ airflowLocalSettings: ~
 
 
 # --- Webserver & Local Access ---
+# In Airflow 3.x, apiServer serves both the React UI and REST API.
+# webserver is disabled to prevent port collisions on NodePort 30080.
 webserver:
-  replicas: 1
-  service:
-    # NodePort 30080 maps to host port 8080 via kind-cluster.yaml
-    type: NodePort
-    ports:
-      - name: airflow-ui
-        port: 8080
-        nodePort: 30080
-
-  # FAB Keycloak OIDC Authentication & RBAC (managed cleanly in config/webserver_config.py)
-  webserverConfig: ~
-  webserverConfigConfigMapName: "custom-webserver-config"
+  enabled: false
 
 
 

@@ -17,7 +17,7 @@ OAUTH_PROVIDERS = [
         "token_key": "access_token",
         "remote_app": {
             "client_id": "airflow",
-            "client_secret": "airflow-client-secret",
+            "client_secret": os.environ.get("KEYCLOAK_CLIENT_SECRET", "airflow-client-secret"),
             "server_metadata_url": f"{KEYCLOAK_INTERNAL_URL}/realms/airflow/.well-known/openid-configuration",
             "api_base_url": f"{KEYCLOAK_INTERNAL_URL}/realms/airflow/protocol/",
             "client_kwargs": {

@@ -28,12 +28,14 @@ usage() {
     echo "  metrics        View Prometheus & Grafana status and dashboard URLs"
     echo "  ingress        View Ingress routing, cert-manager TLS certificates, and DNS"
     echo "  hosts          Add or check /etc/hosts DNS mappings for all TLS Ingress services"
-    echo "  test-alert     Trigger the failure DAG to verify Airflow Gmail failure alerts"
+    echo "  test           Run CI/CD DAG governance and policy validation tests"
+    echo "  test-alert     Trigger the real failure drill DAG to verify Airflow SmtpNotifier alerts"
     echo "  test-grafana-alert Trigger Grafana Alerting notification test to Gmail"
     echo "  test-auth      Verify Keycloak OIDC token issuance and user claims"
     echo "  logs [pod]     Tail logs for worker, scheduler, or keycloak (default: worker)"
     echo "  vault [action] Manage external HashiCorp Vault (status, ui, start, seed)"
     echo "  ldap [action]  Manage Enterprise OpenLDAP (status, ui, add-user, list-users, list-groups, backup, restore, sync)"
+    echo "  bundle         Export repository to a single text file (repo_bundle.txt)"
     echo "  help           Display this help screen"
 }
 
@@ -150,52 +152,45 @@ case "${cmd}" in
         "${ROOT_DIR}/scripts/setup-hosts.sh"
         ;;
 
+    test)
+        echo -e "${CYAN}Running Enterprise DAG Governance & CI/CD Quality Gate Tests...${NC}"
+        if kubectl get deployment airflow-scheduler -n "${NAMESPACE}" >/dev/null 2>&1 && kubectl get pod -l component=scheduler -n "${NAMESPACE}" --field-selector=status.phase=Running 2>/dev/null | grep -q airflow; then
+            echo -e "${GREEN}Executing tests inside live airflow-scheduler pod...${NC}"
+            kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- python3 -m unittest /opt/airflow/tests/test_dag_governance.py
+        elif docker images --format '{{.Repository}}:{{.Tag}}' | grep -qx "learn-airflow:3.3.2-python3.12"; then
+            echo -e "${GREEN}Executing tests inside custom Airflow 3 Docker container...${NC}"
+            docker run --rm \
+                --entrypoint python3 \
+                -v "${ROOT_DIR}/dags:/opt/airflow/dags:ro" \
+                -v "${ROOT_DIR}/config:/opt/airflow/config:ro" \
+                -v "${ROOT_DIR}/tests:/opt/airflow/tests:ro" \
+                -e PYTHONPATH="/opt/airflow/config" \
+                learn-airflow:3.3.2-python3.12 -m unittest /opt/airflow/tests/test_dag_governance.py
+        else
+            echo -e "${YELLOW}Executing static AST & policy tests using host Python...${NC}"
+            python3 "${ROOT_DIR}/tests/test_dag_governance.py"
+        fi
+        ;;
+
     test-alert)
-        echo -e "${CYAN}Dispatching Airflow failure alert email via Gmail SMTP (alerts@example.com)...${NC}"
-        kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- python3 -c '
-import smtplib, os, sys
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
-pwd = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "")
-recipient = os.environ.get("AIRFLOW_ALERT_EMAIL", "alerts@example.com")
-
-if not pwd:
-    print("\033[0;31m[ERROR] GMAIL_APP_PASSWORD is not set in Airflow secret.\033[0m")
-    sys.exit(1)
-
-msg = MIMEMultipart("alternative")
-msg["Subject"] = "[Airflow Alert] Failure Notification Test - Production Lab"
-msg["From"] = f"Airflow Alert <{recipient}>"
-msg["To"] = recipient
-
-html = """
-<div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-  <h2 style="color: #d9381e; margin-top: 0;">🚨 Apache Airflow Task Failure Alert</h2>
-  <p>This is a live alert notification dispatched from your local <b>Apache Airflow 3</b> Kubernetes cluster.</p>
-  <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>Cluster:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">KinD (airflow-local)</td></tr>
-    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>Web UI:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;"><a href="https://airflow.local">https://airflow.local</a></td></tr>
-    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>DAG ID:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;"><code>failure_drill</code></td></tr>
-    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>Task ID:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;"><code>test_notification</code></td></tr>
-    <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><b>SMTP Relay:</b></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">smtp.gmail.com:587 (TLS/STARTTLS)</td></tr>
-  </table>
-  <p style="margin-top: 20px; color: #555;">Delivery status: <b>SUCCESS</b>. The Airflow SMTP alert pipeline is operating normally.</p>
-</div>
-"""
-msg.attach(MIMEText(html, "html"))
-
-try:
-    s = smtplib.SMTP("smtp.gmail.com", 587, timeout=15)
-    s.starttls()
-    s.login(recipient, pwd)
-    s.sendmail(recipient, [recipient], msg.as_string())
-    s.quit()
-    print("\033[0;32m[SUCCESS] Airflow alert email successfully sent to " + recipient + "!\033[0m")
-except Exception as e:
-    print(f"\033[0;31m[ERROR] Failed to send email via Gmail SMTP: {e}\033[0m")
-    sys.exit(1)
-'
+        echo -e "${CYAN}Triggering real Airflow task failure drill to test SmtpNotifier alerting pipeline...${NC}"
+        if ! kubectl get deployment airflow-scheduler -n "${NAMESPACE}" >/dev/null 2>&1; then
+            echo -e "${RED}[ERROR] Airflow cluster is not running. Start the cluster first with './ctl start'.${NC}"
+            exit 1
+        fi
+        echo "1. Unpausing failure_drill DAG in Airflow..."
+        kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- airflow dags unpause failure_drill 2>/dev/null || true
+        echo "2. Triggering failure_drill execution on Celery worker..."
+        TRIGGER_OUT=$(kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- airflow dags trigger failure_drill 2>&1)
+        echo "${TRIGGER_OUT}"
+        echo ""
+        echo -e "${GREEN}3. Failure drill task triggered successfully!${NC}"
+        echo "Task 'test_notification' is queued for a Celery worker, where it deliberately fails."
+        echo "The cluster policy automatically executes DEFAULT_FAILURE_NOTIFIER (SmtpNotifier),"
+        echo "which renders /opt/airflow/config/email/ templates and sends an alert to Gmail."
+        echo ""
+        echo -e "${YELLOW}To follow Celery worker execution and callback dispatch in real time:${NC}"
+        echo "  ./ctl logs worker"
         ;;
 
     test-grafana-alert)
@@ -276,7 +271,7 @@ for username, password, expected_group in creds:
         target="${2:-worker}"
         case "${target}" in
             worker)
-                kubectl logs -n "${NAMESPACE}" airflow-worker-0 -c worker -f
+                kubectl logs -n "${NAMESPACE}" -l tier=airflow,component=worker -c worker -f --prefix=true
                 ;;
             scheduler)
                 kubectl logs -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -f
@@ -413,6 +408,11 @@ print(obj["Body"].read().decode("utf-8"))
                 exit 1
                 ;;
         esac
+        ;;
+
+    bundle)
+        shift
+        python3 "${ROOT_DIR}/scripts/copy_repo_to_txt.py" "$@"
         ;;
 
     help|--help|-h)

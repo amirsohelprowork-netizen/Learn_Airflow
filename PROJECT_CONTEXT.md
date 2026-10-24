@@ -168,12 +168,9 @@ When authoring new DAGs or modifying code in this repository, you **MUST** follo
 │   └── start-local-k8s.sh           # Fully automated KinD, Keycloak, Helm & RBAC seed script
 ├── k8s/
 │   ├── kind-cluster.yaml            # KinD 2-node cluster config with NodePort mappings
-│   ├── keycloak/
-│   │   ├── deployment.yaml          # Keycloak 26.0.7 deployment with dynamic backchannel
-│   │   ├── service.yaml             # Keycloak NodePort service (30081 -> 8080)
-│   │   └── realm-airflow.json       # Keycloak realm with groups, users, and OIDC mappers
-│   └── test/
-│       └── test-runner-pod.yaml     # In-cluster debugging pod template
+│   └── keycloak/
+│       ├── service.yaml             # Keycloak NodePort service (30081 -> 8080)
+│       └── realm-airflow.json       # Keycloak realm with groups, users, and OIDC mappers
 ├── dags/
 │   ├── finance/
 │   │   └── finance_report.py        # Owner: 'finance' -> aid-finance-auth
@@ -181,10 +178,9 @@ When authoring new DAGs or modifying code in this repository, you **MUST** follo
 │   │   └── marketing_campaign.py    # Owner: 'marketing' -> aid-marketing-auth
 │   ├── logistics/
 │   │   └── logistics_delivery.py    # Owner: 'logistics' -> aid-logistics-auth
-│   ├── analytics/
-│   │   └── analytics_etl.py         # Owner: 'analytics' -> aid-analytics-auth
-│   └── team_a/
-│       └── notify_on_failure.py     # Email notification failure test DAG
+│   └── analytics/
+│       ├── analytics_etl.py         # Owner: 'analytics' -> aid-analytics-auth
+│       └── failure_drill.py         # Alerting failure drill DAG (Owner: 'analytics')
 ├── plugins/                         # [Empty placeholder directory]
 └── logs/                            # [Empty placeholder directory]
 ```
@@ -221,7 +217,7 @@ When authoring new DAGs or modifying code in this repository, you **MUST** follo
 ```bash
 ./ctl test-alert
 ```
-*Triggers `team_a_notify_on_failure` and checks for dispatch to `alerts@example.com`.*
+*Triggers `failure_drill` task failure to verify end-to-end Airflow SmtpNotifier dispatch to `alerts@example.com`.*
 
 ### Viewing Component Logs:
 ```bash

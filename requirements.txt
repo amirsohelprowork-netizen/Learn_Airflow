@@ -12,7 +12,6 @@ apache-airflow-providers-postgres
 apache-airflow-providers-redis
 apache-airflow-providers-smtp
 apache-airflow-providers-standard
-python-ldap
 authlib
 apache-airflow-providers-hashicorp
 apache-airflow-providers-amazon

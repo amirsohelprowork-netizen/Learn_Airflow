@@ -15,8 +15,8 @@
       start_date=datetime(2026, 1, 1),
       schedule=None,
       catchup=False,
-      tags=["team-a"],
-      default_args={"owner": "team-a"},
+      tags=["finance", "reporting"],
+      default_args={"owner": "finance"},
   ) as dag:
   ```
 - Always instantiate explicit Operator classes:
@@ -42,4 +42,4 @@
 
 ## 3. Dependencies & RBAC
 - Explicitly chain tasks using bitshift operators: `task_one >> task_two`.
-- **Do NOT hardcode `access_control`**: RBAC permissions are assigned automatically by the cluster policy (`config/airflow_local_settings.py`) based on `tags` (e.g. `tags=["team-a"]`).
+- **Do NOT hardcode `access_control`**: RBAC permissions (`aid-<owner>-auth`) and isolated department pools (`<owner>_pool`) are assigned automatically by cluster policy (`config/airflow_local_settings.py`) based on `default_args={"owner": "<department>"}` (`finance`, `marketing`, `logistics`, `analytics`).

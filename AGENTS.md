@@ -5,4 +5,4 @@
 - **Context Manager**: Always define DAGs using `with DAG(...) as dag:`.
 - **Explicit Operators**: Always use explicit Operator classes (e.g., `PythonOperator`, `BashOperator`, `EmptyOperator`).
 - **Dependencies**: Explicitly chain tasks using bitshift operators (`task1 >> task2`).
-- **RBAC**: Do not hardcode `access_control` on DAGs; access control is dynamically applied via cluster policy (`config/airflow_local_settings.py`) using `tags` (e.g. `tags=["team-a"]`).
+- **RBAC & Governance**: Do not hardcode `access_control` on DAGs; access control (`aid-<owner>-auth`) and isolated department pools (`<owner>_pool`) are dynamically applied via cluster policy (`config/airflow_local_settings.py`) using `default_args={"owner": "<department>"}` (`finance`, `marketing`, `logistics`, `analytics`).

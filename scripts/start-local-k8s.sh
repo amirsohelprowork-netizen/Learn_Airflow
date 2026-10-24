@@ -23,9 +23,6 @@ kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
 
 echo "=== 3. Setting Up Namespace & ConfigMaps ==="
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-kubectl create configmap custom-webserver-config \
-    --from-file=webserver_config.py="${ROOT_DIR}/config/webserver_config.py" \
-    -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap airflow-webserver-config \
     --from-file=webserver_config.py="${ROOT_DIR}/config/webserver_config.py" \
     -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
@@ -136,7 +133,7 @@ base_perms = [
     ("can_edit", "DAG Runs"), ("can_delete", "DAG Runs"), ("menu_access", "DAG Runs"),
     ("can_read", "DAG Versions"), ("can_read", "DAG Warnings"), ("menu_access", "DAGs"),
     ("menu_access", "Docs"), ("menu_access", "Documentation"), ("can_read", "HITL Detail"),
-    ("can_edit", "HITL Detail"), ("can_read", "ImportError"), ("can_read", "All Import Errors"),
+    ("can_edit", "HITL Detail"), ("can_read", "ImportError"),
     ("can_read", "Jobs"), ("menu_access", "Jobs"), ("can_edit", "My Password"),
     ("can_read", "My Password"), ("can_edit", "My Profile"), ("can_read", "My Profile"),
     ("can_read", "Pools"), ("can_read", "Plugins"), ("can_read", "SLA Misses"),
@@ -153,6 +150,12 @@ for r_name in roles:
                 r.permissions.append(p)
 session.commit()
 ' 2>/dev/null || true
+
+echo "Seeding department execution pools with isolated worker slot quotas..."
+for dept in finance marketing logistics analytics; do
+    kubectl exec -n "${NAMESPACE}" deploy/airflow-scheduler -c scheduler -- \
+        airflow pools set "${dept}_pool" 8 "${dept^} department execution pool" 2>/dev/null || true
+done
 
 
 echo "=== 6. Deploying Ingress & TLS (cert-manager) ==="

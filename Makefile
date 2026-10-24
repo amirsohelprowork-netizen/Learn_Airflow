@@ -2,7 +2,7 @@
 # Airflow 3 + Keycloak Local Kubernetes Development Makefile
 # ==============================================================================
 
-.PHONY: help start stop status build test-alert test-auth logs-worker logs-scheduler logs-keycloak
+.PHONY: help start stop status build test test-alert test-grafana-alert test-auth logs-worker logs-scheduler logs-keycloak bundle
 
 # Default target
 help: ## Show this help menu
@@ -36,14 +36,20 @@ test-grafana-alert: ## Trigger Grafana Alerting notification test to Gmail
 	@./ctl test-grafana-alert
 
 
+test: ## Run CI/CD DAG governance and policy validation suite
+	@./ctl test
+
 test-auth: ## Test Keycloak token issuance and userinfo claims for all 4 team AD users
 	@./ctl test-auth
 
-logs-worker: ## Follow logs for the Airflow Celery worker
-	@kubectl logs -n airflow airflow-worker-0 -c worker -f
+logs-worker: ## Follow logs for all Airflow Celery workers
+	@kubectl logs -n airflow -l tier=airflow,component=worker -c worker -f --prefix=true
 
 logs-scheduler: ## Follow logs for the Airflow scheduler
 	@kubectl logs -n airflow deploy/airflow-scheduler -c scheduler -f
 
 logs-keycloak: ## Follow logs for Keycloak
-	@kubectl logs -n airflow deploy/keycloak -c keycloak -f
+	@./ctl logs keycloak
+
+bundle: ## Export entire repository into a single text file (repo_bundle.txt)
+	@python3 scripts/copy_repo_to_txt.py

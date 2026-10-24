@@ -201,7 +201,7 @@ data:
           "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
           "targets": [
             {
-              "expr": "sum(rate(airflow_scheduler_heartbeat[1m])) or vector(1)",
+              "expr": "sum(rate(airflow_scheduler_heartbeat[1m])) or vector(0)",
               "legendFormat": "Heartbeats/sec",
               "refId": "A"
             }
@@ -326,7 +326,7 @@ spec:
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "true"
             - name: GF_AUTH_ANONYMOUS_ORG_ROLE
-              value: "Admin"
+              value: "Viewer"
             - name: GF_SMTP_ENABLED
               value: "true"
             - name: GF_SMTP_HOST

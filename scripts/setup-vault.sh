@@ -139,13 +139,19 @@ else
     echo -e "${YELLOW}Kubernetes cluster not detected yet; skipping k8s service mapping.${NC}"
 fi
 
+GMAIL_PASS="${GMAIL_APP_PASSWORD:-}"
+if [[ -z "${GMAIL_PASS}" ]] && kubectl get secret airflow-smtp-secret -n "${NAMESPACE}" >/dev/null 2>&1; then
+    GMAIL_PASS=$(kubectl get secret airflow-smtp-secret -n "${NAMESPACE}" -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)
+fi
+
 echo -e "${CYAN}=== 3. Populating Initial Secrets & Variables into Vault ===${NC}"
 # Use Python helper to populate Vault KV v2 paths cleanly
-python3 -c "
-import urllib.request, json
+GMAIL_APP_PASSWORD="${GMAIL_PASS}" python3 -c "
+import urllib.request, json, os
 
 vault_url = '${VAULT_ADDR}'
 vault_token = '${VAULT_TOKEN}'
+smtp_pwd = os.environ.get('GMAIL_APP_PASSWORD', '').replace(' ', '')
 
 def write_secret(path, data):
     url = f'{vault_url}/v1/secret/data/{path}'
@@ -183,10 +189,16 @@ write_secret('airflow/connections/postgres_default', {
     'schema': 'airflow'
 })
 write_secret('airflow/connections/smtp_default', {
-    'conn_type': 'email',
+    'conn_type': 'smtp',
     'host': 'smtp.gmail.com',
     'login': 'alerts@example.com',
-    'port': 587
+    'password': smtp_pwd,
+    'port': 587,
+    'extra': json.dumps({
+        'from_email': 'alerts@example.com',
+        'disable_ssl': True,
+        'disable_tls': False
+    })
 })
 write_secret('airflow/connections/aws_default', {
     'conn_type': 'aws',

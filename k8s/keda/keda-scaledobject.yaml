@@ -28,7 +28,7 @@ metadata:
     deploymentName: airflow-worker
 spec:
   scaleTargetRef:
-    kind: Deployment
+    kind: StatefulSet
     name: airflow-worker
   pollingInterval: 5
   cooldownPeriod: 30

@@ -616,7 +616,8 @@ lab lifecycle.
 | `./ctl metrics` | Check Prometheus & Grafana health, dashboard URLs, and port-forward helpers |
 | `./ctl ingress` | View Ingress routing, cert-manager TLS certificates, and local `/etc/hosts` DNS setup |
 | `./ctl hosts` | Automatically add or check `/etc/hosts` DNS records for all secure services |
-| `./ctl test-alert` | Trigger the failure notification DAG and verify Airflow Gmail delivery |
+| `./ctl test` | Run CI/CD DAG governance and policy validation test suite |
+| `./ctl test-alert` | Trigger the real failure drill DAG to verify Airflow SmtpNotifier Gmail delivery |
 | `./ctl test-grafana-alert` | Trigger Grafana Alerting notification test to Gmail (`alerts@example.com`) |
 | `./ctl test-auth` | Test Keycloak OIDC token issuance for all team users |
 | `./ctl logs <target>` | Tail logs for `worker`, `scheduler`, or `keycloak` |
@@ -659,13 +660,17 @@ A `Makefile` wrapper is also available for common commands (`make start`,
 │
 ├── dags/
 │   ├── analytics/
-│   │   └── analytics_etl.py             # Analytics ETL pipeline (owner: analytics)
+│   │   ├── analytics_etl.py             # Analytics ETL pipeline (owner: analytics)
+│   │   └── failure_drill.py             # SmtpNotifier failure drill DAG (owner: analytics)
 │   ├── finance/
 │   │   └── finance_report.py            # Finance monthly report (owner: finance)
 │   ├── logistics/
 │   │   └── logistics_delivery.py        # Logistics fleet monitoring (owner: logistics)
 │   └── marketing/
 │       └── marketing_campaign.py        # Marketing campaign tracker (owner: marketing)
+│
+├── tests/
+│   └── test_dag_governance.py           # CI/CD Quality Gate (AST no-TaskFlow, RBAC, DagBag)
 │
 ├── k8s/
 │   ├── kind-cluster.yaml                # KinD config — Ingress node-labels & port mappings (80, 443, 8080, 5555)
@@ -678,7 +683,6 @@ A `Makefile` wrapper is also available for common commands (`make start`,
 │   │   ├── prometheus.yaml              # Prometheus deployment, config, and cross-namespace network policy
 │   │   └── grafana.yaml                 # Grafana deployment, datasources, and pre-baked Airflow dashboard
 │   ├── keycloak/
-│   │   ├── deployment.yaml              # Keycloak K8s Deployment + Service (NodePort 30081)
 │   │   ├── service.yaml                 # Headless Service + Endpoints bridging external Keycloak
 │   │   └── realm-airflow.json           # Pre-built realm export: clients, roles, mappers, users
 │   ├── ldap/
