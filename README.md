@@ -44,7 +44,12 @@ A battle-tested, production-grade reference architecture, deployment manual, and
 - [3. Unified Access Endpoints & Enterprise Personas Directory](#3-unified-access-endpoints--enterprise-personas-directory)
   - [Web UIs & Service Consoles](#web-uis--service-consoles)
   - [Enterprise User Persona & RBAC Authorization Matrix](#enterprise-user-persona--rbac-authorization-matrix)
-- [4. Step-by-Step Local Deployment Guide (From Scratch)](#4-step-by-step-local-deployment-guide-from-scratch)
+- [4. Operational Evidence & Visual Verification Showcase](#4-operational-evidence--visual-verification-showcase)
+  - [1. Modern Airflow 3 Orchestration & Real-Time Monitoring](#1-modern-airflow-3-orchestration--real-time-monitoring)
+  - [2. Identity & Access Management (Keycloak SSO & OpenLDAP)](#2-identity--access-management-keycloak-sso--openldap)
+  - [3. Production Telemetry & Observability (Grafana & Prometheus)](#3-production-telemetry--observability-grafana--prometheus)
+  - [4. Enterprise Secrets Management & Remote Object Storage (Vault & MinIO)](#4-enterprise-secrets-management--remote-object-storage-vault--minio)
+- [5. Step-by-Step Local Deployment Guide (From Scratch)](#5-step-by-step-local-deployment-guide-from-scratch)
   - [Hardware & Operating System Requirements](#hardware--operating-system-requirements)
   - [Step 1: Install Host Prerequisites](#step-1-install-host-prerequisites)
   - [Step 2: Clone the Repository](#step-2-clone-the-repository)
@@ -53,8 +58,8 @@ A battle-tested, production-grade reference architecture, deployment manual, and
   - [Step 4a: Remote S3 State Backend (MinIO vs. AWS S3)](#step-4a-remote-s3-state-backend-minio-vs-aws-s3)
   - [Step 5: Configure Local DNS Records (`/etc/hosts`)](#step-5-configure-local-dns-records-etchosts)
   - [Step 6: End-to-End Verification & Smoke Testing](#step-6-end-to-end-verification--smoke-testing)
-  - [Step 7: Day-to-Day Local Operations](#step-7-day-to-day-local-operations)
-- [5. Step-by-Step Enterprise Production Deployment Blueprint (From Scratch)](#5-step-by-step-enterprise-production-deployment-blueprint-from-scratch)
+  - [Step 7: Day-to-Day Local Operations & CI/CD Pipeline](#step-7-day-to-day-local-operations--cicd-pipeline)
+- [6. Step-by-Step Enterprise Production Deployment Blueprint (From Scratch)](#6-step-by-step-enterprise-production-deployment-blueprint-from-scratch)
   - [Phase 1: Cloud Network Foundation (Multi-AZ VPC)](#phase-1-cloud-network-foundation-multi-az-vpc)
   - [Phase 2: Managed Kubernetes Cluster Provisioning (EKS)](#phase-2-managed-kubernetes-cluster-provisioning-eks)
   - [Phase 3: Production Metadata DB & PgBouncer Setup](#phase-3-production-metadata-db--pgbouncer-setup)
@@ -68,17 +73,17 @@ A battle-tested, production-grade reference architecture, deployment manual, and
   - [Phase 11: Event-Driven Worker Autoscaling (KEDA + Karpenter)](#phase-11-event-driven-worker-autoscaling-keda--karpenter)
   - [Phase 12: Production Observability, Dashboards & Alerting](#phase-12-production-observability-dashboards--alerting)
   - [Phase 13: Day-2 Operations, Governance & Disaster Recovery](#phase-13-day-2-operations-governance--disaster-recovery)
-- [6. Core Architecture Deep-Dives](#6-core-architecture-deep-dives)
+- [7. Core Architecture Deep-Dives](#7-core-architecture-deep-dives)
   - [A. Dynamic Owner-Based RBAC (`airflow_local_settings.py`)](#a-dynamic-owner-based-rbac-airflow_local_settingspy)
   - [B. Enterprise SSO & Backchannel Resolution](#b-enterprise-sso--backchannel-resolution)
   - [C. Central Artifact Repository Architecture (Nexus 3 OSS)](#c-central-artifact-repository-architecture-nexus-3-oss)
   - [D. External Secrets Backend Integration (Vault)](#d-external-secrets-backend-integration-vault)
   - [E. Event-Driven Autoscaling with KEDA](#e-event-driven-autoscaling-with-keda)
   - [F. Declarative Infrastructure as Code & S3 Remote State Backend](#f-declarative-infrastructure-as-code--s3-remote-state-backend)
-- [7. Portable Control CLI Reference (`./ctl`)](#7-portable-control-cli-reference-ctl)
-- [8. DAG Authoring Standards & Quality Gates](#8-dag-authoring-standards--quality-gates)
-- [9. Complete Repository Structure](#9-complete-repository-structure)
-- [10. Troubleshooting & FAQ](#10-troubleshooting--faq)
+- [8. Portable Control CLI Reference (`./ctl`)](#8-portable-control-cli-reference-ctl)
+- [9. DAG Authoring Standards & Quality Gates](#9-dag-authoring-standards--quality-gates)
+- [10. Complete Repository Structure](#10-complete-repository-structure)
+- [11. Troubleshooting & FAQ](#11-troubleshooting--faq)
 
 ---
 
@@ -626,7 +631,113 @@ Users are defined in **OpenLDAP** (`dc=example,dc=org`), federated dynamically i
 
 ---
 
-## 4. Step-by-Step Local Deployment Guide (From Scratch)
+## 4. Operational Evidence & Visual Verification Showcase
+
+All 9 enterprise infrastructure domains and Airflow 3 components have been verified running end-to-end with automated TLS ingress, OIDC single sign-on, corporate LDAP directory sync, external Vault secrets, S3 remote logging, KEDA autoscaling, and real-time Prometheus/Grafana observability.
+
+The following visual evidence is captured directly from the live environment (stored in [`evidence/`](evidence/)):
+
+### 1. Modern Airflow 3 Orchestration & Real-Time Monitoring
+
+#### Airflow 3 Modern Web UI Dashboard
+Active operational dashboard displaying real-time cluster health indicators (**MetaDatabase**, **Scheduler**, **Triggerer**, **Dag Processor**, and **Pool Slots (160)** all green), active DAG runs, and task instance state breakdown:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-32-54.png" width="950" alt="Airflow 3 Modern UI Dashboard" />
+</p>
+
+#### Airflow Keycloak OIDC Login Gateway
+Zero-password local authentication portal enforcing single sign-on federation through Keycloak:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-32-08.png" width="950" alt="Airflow Keycloak Login Screen" />
+</p>
+
+#### Celery Flower Distributed Worker Monitor
+Real-time Celery worker status monitor (`https://flower.local`) tracking active worker nodes (`celery@airflow-worker`), task processing throughput, and zero task failures:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-36-57.png" width="950" alt="Celery Flower Monitor" />
+</p>
+
+---
+
+### 2. Identity & Access Management (Keycloak SSO & OpenLDAP)
+
+#### Keycloak Enterprise Realm Authentication
+SSO authentication portal (`https://auth.local`) branded for the `airflow` realm, supporting seamless credential evaluation against OpenLDAP:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-32-42.png" width="950" alt="Keycloak User Login" />
+</p>
+
+#### Keycloak Active Directory Security Groups & Dynamic RBAC
+Centralized mapping of department AD groups (`aid-analytics-auth`, `aid-finance-auth`, `aid-logistics-auth`, `aid-marketing-auth`, `airflow-admins`) mapped directly to Airflow roles without hardcoding:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-34-46.png" width="950" alt="Keycloak Airflow Realm Groups" />
+</p>
+
+#### Keycloak Master Administration Console
+Administrative realm configuration and client protocol scopes:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-33-56.png" width="950" alt="Keycloak Master Admin Console" />
+</p>
+
+#### OpenLDAP Directory Tree in phpLDAPadmin
+Interactive corporate directory GUI (`https://ldap.local`) connected to `airflow-openldap`, displaying organizational units (`ou=groups`, `ou=users`):
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-43-09.png" width="950" alt="phpLDAPadmin Directory Tree" />
+</p>
+
+#### phpLDAPadmin Directory Authentication
+Secure administrator bind prompt (`cn=admin,dc=example,dc=org`):
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-43-20.png" width="950" alt="phpLDAPadmin Authentication" />
+</p>
+
+#### Enterprise Group Membership & `memberOf` Overlay
+Proof of bidirectional AD membership mapping where `uid=user_analytics` is dynamically linked to `cn=aid-analytics-auth`:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-43-53.png" width="950" alt="OpenLDAP Group Membership" />
+</p>
+
+---
+
+### 3. Production Telemetry & Observability (Grafana & Prometheus)
+
+#### Grafana Enterprise Airflow Production Overview
+Pre-configured operational dashboard (`https://grafana.local`) plotting Scheduler Heartbeat Status (healthy at 0.400s), open worker executor slots (64 slots available), task states, and scheduler loop duration:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-35-21.png" width="950" alt="Grafana Production Overview Dashboard" />
+</p>
+
+#### Prometheus Time-Series Engine Runtime Status
+Prometheus metric engine (`https://prometheus.local`) runtime telemetry, verifying zero WAL corruptions, configuration reload success, and continuous StatsD metric ingestion:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-36-18.png" width="950" alt="Prometheus Runtime Status" />
+</p>
+
+---
+
+### 4. Enterprise Secrets Management & Remote Object Storage (Vault & MinIO)
+
+#### HashiCorp Vault KV Secret Engine (`secret/airflow/`)
+Hierarchical secrets storage (`https://vault.local`) isolating Airflow configuration parameters, connection strings (`postgres_default`, `aws_default`, `smtp_default`), and runtime variables:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-38-19.png" width="950" alt="HashiCorp Vault KV Hierarchy" />
+</p>
+
+#### MinIO High-Performance S3 Object Store Console
+Cloud-native S3 storage management console (`https://minio.local`):
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-39-02.png" width="950" alt="MinIO Object Store Login" />
+</p>
+
+#### Persistent Remote Task Logs in MinIO S3 (`s3://airflow-logs/`)
+Proof of remote task log shipping to S3 buckets, showing persistent log streams for `analytics_daily_etl`, `failure_drill`, and `finance_monthly_report`:
+<p align="center">
+  <img src="evidence/Screenshot From 2026-10-24 23-39-33.png" width="950" alt="MinIO Airflow Logs Bucket" />
+</p>
+
+---
+
+## 5. Step-by-Step Local Deployment Guide (From Scratch)
 
 Follow this guide to provision the complete enterprise lab on Linux or macOS.
 
@@ -744,10 +855,10 @@ The Terraform state is maintained remotely in S3-compatible storage rather than 
 2. **Phase 2: Custom Airflow Image Build**: Builds `learn-airflow:3.3.2-python3.12` using the local Artifactory PyPI proxy (`--network=host`) and pre-loads dependencies.
 3. **Phase 3: KinD Cluster Provisioning**: Creates cluster `airflow-local` with node port mappings and loads the custom image into the cluster nodes.
 4. **Phase 4: Stateful Infrastructure Containers**: Starts OpenLDAP, phpLDAPadmin, Keycloak 26, PostgreSQL 16, Redis 7.2, HashiCorp Vault, and MinIO S3 on the host Docker bridge.
-5. **Phase 5: Kubernetes Headless Services**: Creates Kubernetes Service and Endpoints objects in the `airflow` namespace to route cluster traffic to external host containers (`172.18.0.1`).
-6. **Phase 6: TLS & Ingress Infrastructure**: Installs cert-manager, initializes the Root CA ClusterIssuer, and deploys NGINX Ingress Controller.
-7. **Phase 7: Airflow Helm Deployment**: Downloads the official chart from the local Nexus Helm repository and deploys Airflow components (Scheduler, API Server, Celery Workers, Triggerer, Flower).
-8. **Phase 8: Autoscaling & Observability**: Deploys KEDA 2.14, Prometheus, and Grafana 11 with pre-configured dashboards.
+5. **Phase 5: Kubernetes Headless Services & Endpoints**: Creates Kubernetes Service and Endpoints objects in the `airflow` namespace to route cluster traffic to external host containers (`172.18.0.1`), including `openldap`, `phpldapadmin`, `keycloak`, `postgres`, `redis`, `vault`, `s3`, and `artifactory`.
+6. **Phase 6: TLS & Ingress Infrastructure**: Pre-creates the `observability` and `keda` namespaces, installs cert-manager with an internal Root CA ClusterIssuer, deploys the KinD NGINX Ingress Controller, and waits for controller readiness.
+7. **Phase 7: Airflow Helm Deployment**: Downloads the official chart from the local Nexus Helm repository and deploys Airflow components (Scheduler, API Server, Celery Workers, Triggerer, Flower) configured with automated `git-sync` synchronization.
+8. **Phase 8: Autoscaling & Observability**: Deploys KEDA 2.14 targeting the Celery worker `Deployment`, and deploys Prometheus and Grafana 11 with pre-configured production dashboards.
 9. **Phase 9: Enterprise RBAC Seeding**: Seeds the database with non-DAG operational UI permissions to ensure modern Airflow 3 React UI compatibility.
 
 ---
@@ -760,12 +871,15 @@ To access web consoles using clean `.local` domains with automated TLS:
 sudo ./ctl hosts
 ```
 
-This command inspects the KinD control plane IP (e.g., `172.18.0.2`) and adds the required records to `/etc/hosts`:
+This command maps all `.local` domains to localhost (`127.0.0.1`):
 ```text
-172.18.0.2 airflow.local auth.local flower.local grafana.local prometheus.local vault.local minio.local ldap.local artifactory.local
+127.0.0.1 airflow.local auth.local flower.local grafana.local prometheus.local vault.local minio.local ldap.local artifactory.local
 ```
 
-*(Alternatively, wildcard DNS domains such as `https://airflow.172.18.0.2.nip.io` work immediately without editing `/etc/hosts`).*
+> **Why `127.0.0.1`?**
+> In KinD, ports `80` and `443` are published directly to the host loopback (`0.0.0.0:80` and `0.0.0.0:443`). Using `127.0.0.1` ensures that hostnames never break when Docker dynamically reassigns container bridge IPs (`172.18.0.x`) upon container restart. `./ctl hosts` automatically detects and replaces any stale container IPs.
+
+*(Alternatively, wildcard DNS domains such as `https://airflow.172.18.0.4.nip.io` or direct ports like `http://localhost:8080` work immediately without editing `/etc/hosts`).*
 
 ---
 
@@ -783,26 +897,36 @@ Run the verification suite to ensure all components are healthy:
 # 3. Test Keycloak OIDC authentication and security group claims:
 ./ctl test-auth
 
-# 4. Run CI/CD DAG governance and AST quality gate tests:
+# 4. Run CI/CD DAG governance and AST quality gate tests (inside live dag-processor):
 ./ctl test
 
-# 5. Trigger a real pipeline failure notification drill:
+# 5. Run the full 4-gate automated CI/CD pipeline locally:
+./ctl ci
+
+# 6. Trigger a real pipeline failure notification drill:
 ./ctl test-alert
 
-# 6. View KEDA worker autoscaler targets and queue depth:
+# 7. View KEDA worker autoscaler targets and queue depth:
 ./ctl autoscaler
 ```
 
 ---
 
-### Step 7: Day-to-Day Local Operations
+### Step 7: Day-to-Day Local Operations & CI/CD Pipeline
 
 Use the [`./ctl`](ctl) CLI for common operational tasks:
 
 ```bash
-# Tail logs for Airflow scheduler or worker pods:
+# Run local pre-commit quality gates before committing code (mirrors GitHub Actions):
+./ctl ci
+
+# Install automated Git pre-commit hooks:
+./ctl hooks
+
+# Tail logs for Airflow scheduler, worker, or dag-processor pods:
 ./ctl logs scheduler
 ./ctl logs worker
+./ctl logs dag-processor
 
 # Rebuild the custom Docker image via Artifactory after editing Dockerfile:
 ./ctl build
@@ -819,7 +943,7 @@ Use the [`./ctl`](ctl) CLI for common operational tasks:
 
 ---
 
-## 5. Step-by-Step Enterprise Production Deployment Blueprint (From Scratch)
+## 6. Step-by-Step Enterprise Production Deployment Blueprint (From Scratch)
 
 This section details the end-to-end production deployment blueprint for enterprise Kubernetes (e.g., **AWS EKS**, **Google Cloud GKE**, or **Azure AKS**).
 
@@ -1115,7 +1239,7 @@ receivers:
 
 ---
 
-## 6. Core Architecture Deep-Dives
+## 7. Core Architecture Deep-Dives
 
 ### A. Dynamic Owner-Based RBAC (`airflow_local_settings.py`)
 
@@ -1187,7 +1311,7 @@ While shell scripts offer quick bootstrapping for local labs, enterprise archite
 
 ---
 
-## 7. Portable Control CLI Reference (`./ctl`)
+## 8. Portable Control CLI Reference (`./ctl`)
 
 The repository includes [`ctl`](ctl), a portable, dependency-free bash CLI that manages the complete environment:
 
@@ -1196,6 +1320,8 @@ Commands:
   status               Show pod health across all namespaces, external containers, and endpoints
   start                Provision KinD cluster and deploy Keycloak + Airflow + Observability
   stop                 Tear down KinD cluster and cleanly stop all external containers
+  ci                   Execute 4-gate automated CI/CD pipeline locally (mirrors GitHub Actions)
+  hooks                Install automated pre-commit hook enforcing CI quality gates
   build                Rebuild the custom Airflow 3 Docker image via Artifactory PyPI proxy
   autoscaler           View KEDA worker autoscaler targets, HPA status, and database queue depth
   metrics              View Prometheus & Grafana dashboard URLs and scrape health
@@ -1208,13 +1334,13 @@ Commands:
   test-auth            Verify Keycloak OIDC token issuance and group claims for all team personas
   test-alert           Trigger the real failure drill DAG to verify SMTP failure alert delivery
   test-grafana-alert   Trigger Grafana Alerting notification test
-  logs <pod>           Tail logs for worker, scheduler, or keycloak
-  test                 Run CI/CD DAG governance and AST quality gate tests
+  logs <pod>           Tail logs for worker, scheduler, dag-processor, or keycloak
+  test                 Run CI/CD DAG governance and AST quality gate tests in live dag-processor
 ```
 
 ---
 
-## 8. DAG Authoring Standards & Quality Gates
+## 9. DAG Authoring Standards & Quality Gates
 
 When contributing DAGs to this repository, follow these enterprise rules:
 
@@ -1234,17 +1360,21 @@ When contributing DAGs to this repository, follow these enterprise rules:
 2. **Explicit Dependency Chaining**:
    - Chain dependencies using bitshift operators: `task_a >> task_b >> task_c`.
 3. **No Hardcoded `access_control`**:
-   - Do not write manual `access_control={...}` inside DAG files. The cluster policy automatically assigns permissions based on `default_args={"owner": "<team>"}`.
-4. **CI/CD Quality Gate**:
-   - Run the automated test suite before committing:
+   - Do not write manual `access_control={...}` inside DAG files. The cluster policy in `airflow_local_settings.py` automatically assigns permissions based on `default_args={"owner": "<team>"}`.
+4. **4-Gate Automated CI/CD Quality Pipeline**:
+   - Run the automated test suite locally before pushing (enforced via `./ctl hooks` pre-commit):
      ```bash
-     ./ctl test
-     # or pytest tests/
+     ./ctl ci
      ```
+   - All commits and pull requests are automatically validated by GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) across 4 quality gates:
+     1. **Gate 1**: Python compilation & DAG governance AST tests (`tests/test_dag_governance.py`)
+     2. **Gate 2**: Shell script syntax check (`bash -n`)
+     3. **Gate 3**: Terraform formatting & validation (`terraform validate`)
+     4. **Gate 4**: Kubernetes manifests & Helm values lint
 
 ---
 
-## 9. Complete Repository Structure
+## 10. Complete Repository Structure
 
 ```text
 .
@@ -1252,8 +1382,16 @@ When contributing DAGs to this repository, follow these enterprise rules:
 ├── Makefile                             # Make wrapper for automated targets
 ├── Dockerfile                           # Airflow 3.3.2 image (with Artifactory pip integration)
 ├── requirements.txt                     # Provider dependencies & constraints
-├── values.yaml                          # Helm chart values (CeleryExecutor, Vault, S3, SMTP)
+├── values.yaml                          # Helm chart values (CeleryExecutor, Vault, S3, SMTP, gitSync)
 ├── ENDPOINTS.md                         # Detailed access URLs, ports, credentials cheatsheet
+├── agent-command.md                     # Living audit log of agent operations & troubleshooting
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml                       # GitHub Actions 4-gate automated quality gate pipeline
+│
+├── evidence/                            # Visual verification screenshots of all working UIs
+│   ├── Screenshot From ...              # Airflow 3, Keycloak, Grafana, Vault, MinIO, LDAP evidence
 │
 ├── config/
 │   ├── airflow_local_settings.py        # dag_policy() — dynamic owner-based RBAC cluster policy
@@ -1263,15 +1401,11 @@ When contributing DAGs to this repository, follow these enterprise rules:
 │       └── subject.txt                  # Failure email subject template
 │
 ├── dags/
-│   ├── analytics/
-│   │   ├── analytics_etl.py             # Analytics pipeline (owner: analytics)
-│   │   └── failure_drill.py             # Alerting failure drill DAG (owner: analytics)
-│   ├── finance/
-│   │   └── finance_report.py            # Finance pipeline (owner: finance)
-│   ├── logistics/
-│   │   └── logistics_delivery.py        # Logistics pipeline (owner: logistics)
-│   └── marketing/
-│       └── marketing_campaign.py        # Marketing pipeline (owner: marketing)
+│   ├── analytics_daily_etl.py           # Analytics pipeline (owner: analytics, analytics_pool)
+│   ├── failure_drill.py                 # Automated failure drill for SMTP & PagerDuty alerts
+│   ├── finance_monthly_report.py        # Financial aggregation (owner: finance, finance_pool)
+│   ├── logistics_fleet_monitoring.py    # Logistics tracking (owner: logistics, logistics_pool)
+│   └── marketing_campaign_tracker.py    # Marketing attribution (owner: marketing, marketing_pool)
 │
 ├── k8s/
 │   ├── kind-cluster.yaml                # KinD cluster config (NodePort mappings & ingress labels)
@@ -1281,7 +1415,7 @@ When contributing DAGs to this repository, follow these enterprise rules:
 │   │   ├── cluster-issuer.yaml          # cert-manager Root CA & CA ClusterIssuer
 │   │   └── airflow-ingress.yaml         # Ingress rules with automated TLS termination
 │   ├── keda/
-│   │   └── keda-scaledobject.yaml       # KEDA worker autoscaler & triggers
+│   │   └── keda-scaledobject.yaml       # KEDA worker autoscaler & triggers (Deployment target)
 │   ├── observability/
 │   │   ├── prometheus.yaml              # Prometheus deployment & scraping configuration
 │   │   └── grafana.yaml                 # Grafana deployment, datasources & dashboards
@@ -1290,7 +1424,8 @@ When contributing DAGs to this repository, follow these enterprise rules:
 │   │   └── realm-airflow.json           # Keycloak realm export (clients, mappers, roles)
 │   ├── ldap/
 │   │   ├── bootstrap.ldif               # OpenLDAP seed tree (OUs, accounts, AD groups)
-│   │   └── service.yaml                 # OpenLDAP headless service
+│   │   ├── service.yaml                 # OpenLDAP headless service
+│   │   └── phpldapadmin-service.yaml    # phpLDAPadmin headless service & endpoints (:8082)
 │   ├── postgres/
 │   │   └── service.yaml                 # PostgreSQL metadata headless service
 │   ├── redis/
@@ -1312,7 +1447,7 @@ When contributing DAGs to this repository, follow these enterprise rules:
 │   ├── setup-db-redis.sh                # PostgreSQL & Redis provisioning
 │   ├── setup-vault.sh                   # HashiCorp Vault provisioning & secret seeding
 │   ├── setup-s3.sh                      # MinIO S3 bucket provisioning
-│   └── setup-hosts.sh                   # Helper script for /etc/hosts DNS configuration
+│   └── setup-hosts.sh                   # Helper script for /etc/hosts DNS configuration (127.0.0.1)
 │
 ├── terraform/                           # Declarative Local Infrastructure as Code
 │   ├── main.tf                          # Master Terraform root orchestrator
@@ -1336,7 +1471,7 @@ When contributing DAGs to this repository, follow these enterprise rules:
 
 ---
 
-## 10. Troubleshooting & FAQ
+## 11. Troubleshooting & FAQ
 
 <details>
 <summary><strong>1. Artifactory / PyPI Proxy Probes Failing</strong></summary>
@@ -1401,6 +1536,71 @@ In an enterprise cloud outage:
 2. Update the DNS record in Route 53 to point to the standby secondary region ALB.
 3. Deploy the Helm release using the standby region's `values.prod.yaml` pointing to the replicated S3 bucket.
 4. Verify worker autoscaler and DAG processor heartbeat.
+</details>
+
+<details>
+<summary><strong>6. airflow.local Refused to Connect (ERR_CONNECTION_REFUSED)</strong></summary>
+
+If your browser fails to connect to `https://airflow.local`:
+1. Check your `/etc/hosts` file:
+   ```bash
+   grep "airflow.local" /etc/hosts
+   ```
+2. If the entry points to a Docker container IP (such as `172.18.0.2` which belongs to the Artifactory container), the connection is refused because Artifactory does not listen on port 443.
+3. In KinD, ports 80 and 443 are published directly to the host loopback (`127.0.0.1`). Update `/etc/hosts` using the automated helper:
+   ```bash
+   sudo ./ctl hosts
+   ```
+   Or manually replace the entry in `/etc/hosts` with:
+   ```text
+   127.0.0.1 airflow.local auth.local flower.local grafana.local prometheus.local vault.local minio.local ldap.local artifactory.local
+   ```
+*(Direct fallback: [http://localhost:8080](http://localhost:8080) is always reachable without `/etc/hosts`).*
+</details>
+
+<details>
+<summary><strong>7. 503 Service Temporarily Unavailable on ldap.local</strong></summary>
+
+The ingress rule for `ldap.local` routes to backend service `phpldapadmin` on port 80. Ensure the Kubernetes bridge service and endpoints are applied:
+```bash
+kubectl apply -f k8s/ldap/phpldapadmin-service.yaml
+```
+Verify that endpoints point to external port `8082`:
+```bash
+kubectl get endpoints phpldapadmin -n airflow
+```
+</details>
+
+<details>
+<summary><strong>8. Cross-Namespace Ingress Dependency (namespaces "observability" not found)</strong></summary>
+
+[`k8s/ingress/airflow-ingress.yaml`](k8s/ingress/airflow-ingress.yaml) provisions ingress rules across both `airflow` and `observability` namespaces. During initial setup, ensure namespaces are pre-created:
+```bash
+kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace keda --dry-run=client -o yaml | kubectl apply -f -
+```
+This is handled automatically by `./ctl start` and [`scripts/setup-ingress.sh`](scripts/setup-ingress.sh).
+</details>
+
+<details>
+<summary><strong>9. Git-Sync Init CrashLoopBackOff (Exit Code 128 / Permission Denied)</strong></summary>
+
+If `airflow-worker`, `airflow-dag-processor`, or `airflow-triggerer` pods stall in `Init:CrashLoopBackOff`:
+1. Check the git-sync initialization logs:
+   ```bash
+   kubectl logs deploy/airflow-dag-processor -c git-sync-init -n airflow
+   ```
+2. Verify that `dags.gitSync.repo` in [`values.yaml`](values.yaml) points to a valid repository and branch that you have access to.
+3. Verify that secret `airflow-ssh-secret` contains your SSH private key:
+   ```bash
+   kubectl get secret airflow-ssh-secret -n airflow -o yaml
+   ```
+4. Re-create the SSH secret if needed:
+   ```bash
+   kubectl create secret generic airflow-ssh-secret \
+     --from-file=gitSshKey="$HOME/.ssh/id_ed25519" \
+     -n airflow --dry-run=client -o yaml | kubectl apply -f -
+   ```
 </details>
 
 ---

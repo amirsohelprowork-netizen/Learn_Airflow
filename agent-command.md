@@ -37,6 +37,28 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 23:58 — document operational evidence screenshots and setup runbook fixes in README.md
+
+**Command**
+
+```bash
+# Update README.md: Added Section 4 Operational Evidence & Visual Verification Showcase (14 UI screenshots across Airflow 3, Keycloak, Grafana, Prometheus, Flower, Vault, MinIO, and phpLDAPadmin), updated setup guides with 127.0.0.1 KinD loopback DNS, dag-processor test targets, phpldapadmin service mapping, and expanded Troubleshooting & FAQ.
+```
+
+**Result:** worked
+
+**Why:** Integrated full visual verification evidence collected from the running local environment into README.md, and documented all architectural fixes (loopback ingress, namespace dependencies, git-sync credentials, and Airflow 3 DagBag testing) for clear end-user reproduction.
+
+**Next command**
+
+```bash
+./ctl ci
+```
+
+**Why the next command worked:** Quality gate verified before commit.
+
+---
+
 ### 2026-10-24 23:41 — verify ldap.local returns HTTP 200 with phpLDAPadmin UI
 
 **Command**
