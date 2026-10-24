@@ -37,6 +37,50 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-25 00:18 — remote GitHub Actions CI run on main passed all 4 quality gates
+
+**Command**
+
+```bash
+python3 scratch/check_jobs.py 40122343320
+```
+
+**Result:** worked
+
+**Why:** Remote GitHub Actions CI run `40122343320` triggered by merge push to `main` finished with Conclusion: success across all 4 matrix jobs: (1) DAG Governance & Policy Tests (Python 3.12); (2) Shell Scripts Syntax Check; (3) Terraform Format & Validation; (4) Kubernetes & Helm YAML Lint.
+
+**Next command**
+
+```bash
+git status
+```
+
+**Why the next command worked:** Verified working directory clean and fully synced with origin/main.
+
+---
+
+### 2026-10-25 00:17 — merge local-pipeline-fixes into main and push to origin
+
+**Command**
+
+```bash
+git checkout main && git pull origin main && git merge local-pipeline-fixes && ./ctl ci && git push origin main
+```
+
+**Result:** worked
+
+**Why:** Merged all public-proofing enhancements, evidence showcase screenshots, pre-flight documentation, and infrastructure fixes from `local-pipeline-fixes` into `main` via fast-forward merge (`c5fb0f1..8ea1577`), verified all 4 local quality gates via `./ctl ci`, and pushed cleanly to `origin/main`.
+
+**Next command**
+
+```bash
+python3 scratch/check_jobs.py 40122343320
+```
+
+**Why the next command worked:** Monitored live remote GitHub Actions CI execution on branch `main`.
+
+---
+
 ### 2026-10-25 00:12 — public-proof git-sync HTTPS cloning, SSH deploy key fallback, and pre-flight guide
 
 **Command**
