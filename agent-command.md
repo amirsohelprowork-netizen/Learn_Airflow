@@ -37,6 +37,50 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 23:41 — verify ldap.local returns HTTP 200 with phpLDAPadmin UI
+
+**Command**
+
+```bash
+curl -k -s -o /dev/null -w "%{http_code}\n" --http1.1 https://ldap.local/
+```
+
+**Result:** worked
+
+**Why:** Confirmed `https://ldap.local/` resolves to localhost, connects via NGINX Ingress, and returns HTTP 200 with the active `phpLDAPadmin (1.2.5)` dashboard.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** Quality gate verified.
+
+---
+
+### 2026-10-24 23:41 — deploy missing phpldapadmin service and endpoints into Kubernetes
+
+**Command**
+
+```bash
+kubectl apply -f k8s/ldap/phpldapadmin-service.yaml
+```
+
+**Result:** worked
+
+**Why:** Resolved `503 Service Temporarily Unavailable` on `ldap.local`. The ingress rule for `ldap.local` targets backend service `phpldapadmin` on port 80, but `scripts/setup-ldap.sh` had only applied `service.yaml` (for `openldap`). Applying `k8s/ldap/phpldapadmin-service.yaml` created `service/phpldapadmin` and `endpoints/phpldapadmin` pointing to external container port 8082.
+
+**Next command**
+
+```bash
+curl -k -s -o /dev/null -w "%{http_code}\n" --http1.1 https://ldap.local/
+```
+
+**Why the next command worked:** Validated that NGINX Ingress can route traffic to the newly created backend service.
+
+---
+
 ### 2026-10-24 23:22 — test all ingress domain routes via localhost port forwarding
 
 **Command**

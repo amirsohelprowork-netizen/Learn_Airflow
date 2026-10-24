@@ -111,7 +111,8 @@ echo -e "${CYAN}=== 3. Mapping External OpenLDAP into Kubernetes ===${NC}"
 if kubectl cluster-info >/dev/null 2>&1; then
     kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -f "${ROOT_DIR}/k8s/ldap/service.yaml"
-    echo -e "${GREEN}Service 'openldap' mapped in namespace '${NAMESPACE}' to external host container.${NC}"
+    kubectl apply -f "${ROOT_DIR}/k8s/ldap/phpldapadmin-service.yaml"
+    echo -e "${GREEN}Services 'openldap' and 'phpldapadmin' mapped in namespace '${NAMESPACE}' to external host containers.${NC}"
 else
     echo -e "${YELLOW}Kubernetes cluster not detected yet; skipping k8s service mapping.${NC}"
 fi
