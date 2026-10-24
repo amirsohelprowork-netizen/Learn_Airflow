@@ -3,6 +3,7 @@
 [![Airflow 3.3.2](https://img.shields.io/badge/Apache%20Airflow-3.3.2-017CEE?style=flat-square&logo=apache-airflow&logoColor=white)](https://airflow.apache.org/)
 [![Keycloak 26.0](https://img.shields.io/badge/Keycloak-26.0.7-blue?style=flat-square&logo=keycloak&logoColor=white)](https://www.keycloak.org/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-KinD%20v1.30-326CE5?style=flat-square&logo=kubernetes&logoColor=white)](https://kind.sigs.k8s.io/)
+[![Terraform](https://img.shields.io/badge/IaC-Terraform%20v1.9%2B-7B42BC?style=flat-square&logo=terraform&logoColor=white)](https://www.terraform.io/)
 [![HashiCorp Vault](https://img.shields.io/badge/HashiCorp%20Vault-1.15-000000?style=flat-square&logo=vault&logoColor=white)](https://www.vaultproject.io/)
 [![MinIO S3](https://img.shields.io/badge/MinIO-S3%20Storage-C72C48?style=flat-square&logo=minio&logoColor=white)](https://min.io/)
 [![Sonatype Nexus](https://img.shields.io/badge/Artifact%20Registry-Nexus%203%20OSS-1B6AC6?style=flat-square&logo=sonatype&logoColor=white)](https://www.sonatype.com/products/sonatype-nexus-oss)
@@ -39,6 +40,7 @@ A battle-tested, production-grade reference architecture, deployment manual, and
     - [11. Observability, Telemetry & PagerDuty Alerting](#11-observability-telemetry--pagerduty-alerting)
     - [12. Pipeline Failure Email Notifications](#12-pipeline-failure-email-notifications)
     - [13. DAG Delivery & Synchronization](#13-dag-delivery--synchronization)
+    - [14. Infrastructure as Code (IaC) & Remote State Management](#14-infrastructure-as-code-iac--remote-state-management)
 - [3. Unified Access Endpoints & Enterprise Personas Directory](#3-unified-access-endpoints--enterprise-personas-directory)
   - [Web UIs & Service Consoles](#web-uis--service-consoles)
   - [Enterprise User Persona & RBAC Authorization Matrix](#enterprise-user-persona--rbac-authorization-matrix)
@@ -47,7 +49,8 @@ A battle-tested, production-grade reference architecture, deployment manual, and
   - [Step 1: Install Host Prerequisites](#step-1-install-host-prerequisites)
   - [Step 2: Clone the Repository](#step-2-clone-the-repository)
   - [Step 3: Environment Setup & Notification Credentials](#step-3-environment-setup--notification-credentials)
-  - [Step 4: Launch the Lab Environment](#step-4-launch-the-lab-environment)
+  - [Step 4: Launch the Lab Environment (Declarative Terraform vs. Bash CLI)](#step-4-launch-the-lab-environment-declarative-terraform-vs-bash-cli)
+  - [Step 4a: Remote S3 State Backend (MinIO vs. AWS S3)](#step-4a-remote-s3-state-backend-minio-vs-aws-s3)
   - [Step 5: Configure Local DNS Records (`/etc/hosts`)](#step-5-configure-local-dns-records-etchosts)
   - [Step 6: End-to-End Verification & Smoke Testing](#step-6-end-to-end-verification--smoke-testing)
   - [Step 7: Day-to-Day Local Operations](#step-7-day-to-day-local-operations)
@@ -71,6 +74,7 @@ A battle-tested, production-grade reference architecture, deployment manual, and
   - [C. Central Artifact Repository Architecture (Nexus 3 OSS)](#c-central-artifact-repository-architecture-nexus-3-oss)
   - [D. External Secrets Backend Integration (Vault)](#d-external-secrets-backend-integration-vault)
   - [E. Event-Driven Autoscaling with KEDA](#e-event-driven-autoscaling-with-keda)
+  - [F. Declarative Infrastructure as Code & S3 Remote State Backend](#f-declarative-infrastructure-as-code--s3-remote-state-backend)
 - [7. Portable Control CLI Reference (`./ctl`)](#7-portable-control-cli-reference-ctl)
 - [8. DAG Authoring Standards & Quality Gates](#8-dag-authoring-standards--quality-gates)
 - [9. Complete Repository Structure](#9-complete-repository-structure)
@@ -314,6 +318,7 @@ The table below provides a 1-to-1 mapping from the local lab tools used in this 
 | **Observability** | **Prometheus + Grafana 11** | **Amazon Managed Prometheus (AMP)** + **Managed Grafana (AMG)** | **Google Cloud Managed Service for Prometheus** | **Azure Monitor Prometheus** | **VictoriaMetrics** / Thanos + Grafana Enterprise | Long-term metric storage in S3, custom Airflow dashboards, PagerDuty, OpsGenie, and Slack alerting. |
 | **Failure Alerting** | **Gmail SMTP** (STARTTLS) | **Amazon Simple Email Service (SES)** | **SendGrid** / Mailgun | **Azure Communication Services** | **Corporate Exchange Relay** / Postfix | Dedicated IP pools, SPF / DKIM / DMARC verification, bounce tracking webhooks, Vault-managed SMTP credentials. |
 | **DAG Delivery** | **Host Bind-Mount / git-sync** | **Immutable Container Image Baking** (CI/CD) or **git-sync sidecar** | **Image Baking** / Cloud Storage FUSE | **Image Baking** / Azure Files | **Image Baking** / Enterprise NFS | Immutable deployments prevent mid-execution DAG drift, enforce strict CI/CD quality gates, and eliminate runtime Git tokens. |
+| **Infrastructure as Code (IaC) & State** | **Terraform v1.9+** (KinD + Docker + Helm) + **MinIO S3 State** (or `./ctl` shell) | **Terraform** + **AWS S3 State Bucket** + **DynamoDB State Lock** | **Terraform** + **Google Cloud Storage (GCS) State** | **Terraform** + **Azure Blob Storage (State Lock)** | **Terraform** + **Ceph / MinIO HA S3 State** | Remote state locking prevents concurrent collisions, tracks 52 cloud resources declaratively, and enables drift detection. |
 
 ---
 
@@ -573,6 +578,19 @@ The table below provides a 1-to-1 mapping from the local lab tools used in this 
 
 ---
 
+#### 14. Infrastructure as Code (IaC) & Remote State Management
+- **Local Lab Setup**:
+  - Full modular Terraform stack in [`terraform/`](terraform/) managing 52 declarative resources across 5 modules (`docker_infra`, `kind_cluster`, `k8s_bridge`, `platform_addons`, `airflow`).
+  - Remote state maintained in local S3 storage via MinIO (`s3://airflow-tfstate/airflow/local/terraform.tfstate`) declared in [`terraform/backend.tf`](terraform/backend.tf).
+  - Automated pre-flight MinIO bootstrapping via [`./ctl terraform`](ctl).
+- **Enterprise Production Architecture**:
+  - Deploy Terraform / OpenTofu with **Amazon S3 remote backend** + **DynamoDB table for distributed state locking**.
+  - Enable S3 bucket versioning and Customer Managed Key encryption (SSE-KMS) to prevent state corruption and protect sensitive values (passwords, connection URIs, private keys).
+  - Pre-configured production backend template available in [`terraform/backend-prod.hcl.example`](terraform/backend-prod.hcl.example).
+
+
+---
+
 ## 3. Unified Access Endpoints & Enterprise Personas Directory
 
 ### Web UIs & Service Consoles
@@ -677,19 +695,44 @@ export AIRFLOW_ALERT_EMAIL="your-email@example.com"
 
 ---
 
-### Step 4: Launch the Lab Environment
+### Step 4: Launch the Lab Environment (Declarative Terraform vs. Bash CLI)
 
-You can provision the entire local infrastructure using either **declarative Terraform** (recommended for IaC standard compliance) or the **automated Bash CLI**:
+You can provision the entire local infrastructure using either **declarative Terraform with S3 remote state** (recommended for IaC standard compliance) or the **automated Bash CLI**:
 
-#### Option A: 100% Declarative Terraform (Recommended)
+#### Option A: 100% Declarative Terraform with Remote S3 State (Recommended)
+The local Terraform configuration in [`terraform/`](terraform/) provisions 52 resources across 5 modules (`docker_infra`, `kind_cluster`, `k8s_bridge`, `platform_addons`, `airflow`):
+
 ```bash
-# Initialize and apply the entire environment via Terraform:
+# 1. Initialize Terraform providers and configure remote S3 state backend:
 ./ctl terraform init
-./ctl terraform apply
 
-# Or run directly inside the terraform directory:
-cd terraform && terraform init && terraform apply
+# 2. Preview the execution plan (52 declarative resources):
+./ctl terraform plan
+
+# 3. Provision the complete environment:
+./ctl terraform apply
 ```
+
+*(Alternatively, you can run native Terraform commands directly: `cd terraform && terraform init && terraform apply`).*
+
+---
+
+### Step 4a: Remote S3 State Backend (MinIO vs. AWS S3)
+
+The Terraform state is maintained remotely in S3-compatible storage rather than on local disk:
+- **Local Storage (MinIO)**: Configured in [`terraform/backend.tf`](terraform/backend.tf):
+  - **Bucket**: `s3://airflow-tfstate`
+  - **Key**: `airflow/local/terraform.tfstate`
+  - **Endpoint**: `http://localhost:9000`
+  - *Automated Bootstrapping*: When you execute `./ctl terraform <command>`, the CLI automatically verifies that MinIO is running and that the `airflow-tfstate` bucket exists before invoking Terraform.
+  - To inspect the state file inside MinIO:
+    ```bash
+    docker exec airflow-minio ls -la /data/airflow-tfstate/airflow/local/
+    ```
+- **Enterprise Cloud (AWS S3)**: When moving to production, switch the backend to Amazon S3 with DynamoDB locking using [`terraform/backend-prod.hcl.example`](terraform/backend-prod.hcl.example):
+  ```bash
+  terraform init -backend-config=backend-prod.hcl -reconfigure
+  ```
 
 #### Option B: Automated Bash CLI
 ```bash
@@ -1128,6 +1171,22 @@ Configured outside the KinD cluster on port `8200`:
 
 ---
 
+### F. Declarative Infrastructure as Code & S3 Remote State Backend
+
+While shell scripts offer quick bootstrapping for local labs, enterprise architectures demand strictly declarative IaC:
+1. **Chained Provider Resolution**:
+   - The root [`terraform/main.tf`](terraform/main.tf) uses [`tehcyx/kind`](terraform/modules/kind_cluster) to create the KinD cluster, and dynamically chains its outputs (`endpoint`, `cluster_ca_certificate`, `client_certificate`, `client_key`) directly to the `kubernetes` and `helm` providers without cyclic plan-time deadlocks.
+2. **External Container Lifecycle**:
+   - [`modules/docker_infra`](terraform/modules/docker_infra) manages persistent volumes and containers (`airflow-artifactory`, `airflow-postgres`, `airflow-redis`, `airflow-vault`, `airflow-minio`, `airflow-openldap`, `airflow-keycloak`) attached to the `kind` network bridge.
+3. **Remote S3 State Persistence**:
+   - [`terraform/backend.tf`](terraform/backend.tf) persists the state file to MinIO S3 (`s3://airflow-tfstate/airflow/local/terraform.tfstate`) using `skip_requesting_account_id = true` and `skip_s3_checksum = true`.
+   - In production, [`terraform/backend-prod.hcl.example`](terraform/backend-prod.hcl.example) seamlessly redirects state to Amazon S3 with DynamoDB state locking.
+4. **Drift Detection & Safe Rollbacks**:
+   - Running `./ctl terraform plan` detects any manual container or pod tampering, ensuring the environment always converges to the desired declarative specification.
+
+
+---
+
 ## 7. Portable Control CLI Reference (`./ctl`)
 
 The repository includes [`ctl`](ctl), a portable, dependency-free bash CLI that manages the complete environment:
@@ -1257,10 +1316,13 @@ When contributing DAGs to this repository, follow these enterprise rules:
 │
 ├── terraform/                           # Declarative Local Infrastructure as Code
 │   ├── main.tf                          # Master Terraform root orchestrator
+│   ├── backend.tf                       # S3 remote state backend configuration (MinIO)
+│   ├── backend-prod.hcl.example         # Production AWS S3 + DynamoDB locking backend
 │   ├── versions.tf                      # Providers: kind, docker, kubernetes, helm, null
 │   ├── variables.tf                     # Configurable inputs & credentials
 │   ├── outputs.tf                       # Formatted web consoles & credentials cheatsheet
 │   ├── terraform.tfvars.example         # Sample configuration file
+│   ├── README.md                        # Dedicated Terraform runbook & guide
 │   └── modules/
 │       ├── docker_infra/                # External containers (Nexus, PG, Redis, Vault, S3, LDAP, Keycloak)
 │       ├── kind_cluster/                # KinD cluster + NodePort & Ingress port mappings
