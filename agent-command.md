@@ -37,6 +37,50 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 22:39 — attempt browser automation to monitor GitHub Actions UI
+
+**Command**
+
+```bash
+# Internal browser subagent: open_browser_url https://github.com/amirsohelprowork-netizen/Learn_Airflow/actions
+```
+
+**Result:** failed
+
+**Why:** The environment is restricted and Playwright could not download the browser driver (`404 Not Found` from Playwright CDN). Direct browser UI inspection is unavailable.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** User input required for authentication or workflow log inspection.
+
+---
+
+### 2026-10-24 22:36 — query GitHub Actions API via curl for workflow status
+
+**Command**
+
+```bash
+curl -s "https://api.github.com/repos/amirsohelprowork-netizen/Learn_Airflow/actions/runs"
+```
+
+**Result:** failed
+
+**Why:** Returned HTTP 404 Not Found because `amirsohelprowork-netizen/Learn_Airflow` is a private repository and requires a GitHub Personal Access Token (`Authorization: Bearer <TOKEN>`) to read Actions run status.
+
+**Next command**
+
+```bash
+# Attempted browser subagent navigation to https://github.com/amirsohelprowork-netizen/Learn_Airflow/actions
+```
+
+**Why the next command worked:** Attempted to use the interactive browser instead of an API token.
+
+---
+
 ### 2026-10-24 22:36 — push branch local-pipeline-fixes to GitHub to trigger CI
 
 **Command**
