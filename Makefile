@@ -2,7 +2,7 @@
 # Airflow 3 + Keycloak Local Kubernetes Development Makefile
 # ==============================================================================
 
-.PHONY: help start stop status build test test-alert test-grafana-alert test-auth logs-worker logs-scheduler logs-keycloak bundle
+.PHONY: help start stop status build test test-alert test-grafana-alert test-auth logs-worker logs-scheduler logs-keycloak tf-init tf-plan tf-apply tf-destroy bundle
 
 # Default target
 help: ## Show this help menu
@@ -50,6 +50,18 @@ logs-scheduler: ## Follow logs for the Airflow scheduler
 
 logs-keycloak: ## Follow logs for Keycloak
 	@./ctl logs keycloak
+
+tf-init: ## Initialize Terraform providers and modules
+	@terraform -chdir=terraform init
+
+tf-plan: ## Show Terraform execution plan for local infrastructure
+	@terraform -chdir=terraform plan
+
+tf-apply: ## Provision entire local infrastructure via Terraform
+	@terraform -chdir=terraform apply
+
+tf-destroy: ## Tear down all local infrastructure via Terraform
+	@terraform -chdir=terraform destroy
 
 bundle: ## Export entire repository into a single text file (repo_bundle.txt)
 	@python3 scripts/copy_repo_to_txt.py

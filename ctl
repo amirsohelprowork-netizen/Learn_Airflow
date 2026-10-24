@@ -36,6 +36,7 @@ usage() {
     echo "  vault [action] Manage external HashiCorp Vault (status, ui, start, seed)"
     echo "  ldap [action]  Manage Enterprise OpenLDAP (status, ui, add-user, list-users, list-groups, backup, restore, sync)"
     echo "  artifactory [act] Manage central Artifactory / Nexus (status, ui, start)"
+    echo "  terraform [act] Manage local infrastructure via Terraform (init, plan, apply, destroy, status)"
     echo "  bundle         Export repository to a single text file (repo_bundle.txt)"
     echo "  help           Display this help screen"
 }
@@ -439,6 +440,36 @@ print(obj["Body"].read().decode("utf-8"))
                 ;;
             *)
                 echo -e "${RED}Unknown artifactory action: ${action}. Use: status, ui, start${NC}"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    terraform)
+        action="${2:-plan}"
+        shift 2 2>/dev/null || shift 1 2>/dev/null || true
+        TF_DIR="${ROOT_DIR}/terraform"
+        case "${action}" in
+            init)
+                terraform -chdir="${TF_DIR}" init "$@"
+                ;;
+            plan)
+                terraform -chdir="${TF_DIR}" plan "$@"
+                ;;
+            apply)
+                terraform -chdir="${TF_DIR}" apply "$@"
+                ;;
+            destroy)
+                terraform -chdir="${TF_DIR}" destroy "$@"
+                ;;
+            status|output)
+                terraform -chdir="${TF_DIR}" output "$@"
+                ;;
+            validate)
+                terraform -chdir="${TF_DIR}" validate "$@"
+                ;;
+            *)
+                echo -e "${RED}Unknown terraform action: ${action}. Use: init, plan, apply, destroy, status, validate${NC}"
                 exit 1
                 ;;
         esac

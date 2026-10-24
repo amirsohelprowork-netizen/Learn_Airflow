@@ -679,8 +679,19 @@ export AIRFLOW_ALERT_EMAIL="your-email@example.com"
 
 ### Step 4: Launch the Lab Environment
 
-Execute the central provisioning command:
+You can provision the entire local infrastructure using either **declarative Terraform** (recommended for IaC standard compliance) or the **automated Bash CLI**:
 
+#### Option A: 100% Declarative Terraform (Recommended)
+```bash
+# Initialize and apply the entire environment via Terraform:
+./ctl terraform init
+./ctl terraform apply
+
+# Or run directly inside the terraform directory:
+cd terraform && terraform init && terraform apply
+```
+
+#### Option B: Automated Bash CLI
 ```bash
 ./ctl start
 ```
@@ -1132,6 +1143,7 @@ Commands:
   ingress              View Ingress routing, cert-manager TLS certificates, and DNS mappings
   hosts                Audit or add /etc/hosts DNS records for all secure TLS services
   artifactory [act]    Manage central Artifactory repository (status, ui, start)
+  terraform [act]      Manage local infrastructure via Terraform (init, plan, apply, destroy, status)
   vault [action]       Manage external HashiCorp Vault (status, ui, start, seed)
   ldap [action]        Manage OpenLDAP (status, ui, list-users, list-groups, add-user, backup, restore, sync)
   test-auth            Verify Keycloak OIDC token issuance and group claims for all team personas
@@ -1242,6 +1254,19 @@ When contributing DAGs to this repository, follow these enterprise rules:
 │   ├── setup-vault.sh                   # HashiCorp Vault provisioning & secret seeding
 │   ├── setup-s3.sh                      # MinIO S3 bucket provisioning
 │   └── setup-hosts.sh                   # Helper script for /etc/hosts DNS configuration
+│
+├── terraform/                           # Declarative Local Infrastructure as Code
+│   ├── main.tf                          # Master Terraform root orchestrator
+│   ├── versions.tf                      # Providers: kind, docker, kubernetes, helm, null
+│   ├── variables.tf                     # Configurable inputs & credentials
+│   ├── outputs.tf                       # Formatted web consoles & credentials cheatsheet
+│   ├── terraform.tfvars.example         # Sample configuration file
+│   └── modules/
+│       ├── docker_infra/                # External containers (Nexus, PG, Redis, Vault, S3, LDAP, Keycloak)
+│       ├── kind_cluster/                # KinD cluster + NodePort & Ingress port mappings
+│       ├── k8s_bridge/                  # Namespaces, Headless Services, Endpoints, Secrets, ConfigMaps
+│       ├── platform_addons/             # Ingress NGINX, cert-manager, KEDA, Prometheus, Grafana
+│       └── airflow/                     # Custom Docker image build via Nexus + Airflow Helm + RBAC
 │
 └── tests/
     └── test_dag_governance.py           # AST quality gate tests (RBAC, syntax, no TaskFlow)
