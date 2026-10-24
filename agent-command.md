@@ -37,6 +37,50 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 22:54 — check local KinD cluster and Docker container deployment status
+
+**Command**
+
+```bash
+kind get clusters 2>/dev/null || true; docker ps --format "table {{.Names}}\t{{.Status}}"
+```
+
+**Result:** worked
+
+**Why:** Revealed that no KinD cluster is currently running (`airflow-local` not found) and only 2 external containers (`airflow-artifactory` and `airflow-minio`) are active. The full compute and identity stack is not yet deployed.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** User query regarding deployment state.
+
+---
+
+### 2026-10-24 22:54 — run ./ctl status to inspect local cluster health
+
+**Command**
+
+```bash
+./ctl status
+```
+
+**Result:** failed
+
+**Why:** Returned `connection refused to localhost:8080` from kubectl because the local KinD Kubernetes cluster has not been started yet.
+
+**Next command**
+
+```bash
+kind get clusters 2>/dev/null || true; docker ps --format "table {{.Names}}\t{{.Status}}"
+```
+
+**Why the next command worked:** Checked underlying Docker and KinD cluster state.
+
+---
+
 ### 2026-10-24 22:50 — verify GitHub Actions pipeline completed successfully (all 4 jobs green)
 
 **Command**
