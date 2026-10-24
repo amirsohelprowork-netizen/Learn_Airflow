@@ -1,7 +1,7 @@
 ###############################################################################
 # Apache Airflow Helm Chart Values for Local Kubernetes (KinD / Minikube)
 # Chart: apache-airflow/airflow
-# Failure Notification: Gmail (alerts@example.com)
+# Failure Notification: Gmail / SMTP (alerts@example.com)
 ###############################################################################
 
 # --- Global & Image Configuration ---
@@ -256,7 +256,7 @@ dags:
     enabled: false
   gitSync:
     enabled: true
-    repo: "git@github.com:your-org/airflow-enterprise-lab.git"
+    repo: "git@github.com:your-org/airflow-production-lab.git"
     branch: "main"
     rev: "HEAD"
     depth: 1

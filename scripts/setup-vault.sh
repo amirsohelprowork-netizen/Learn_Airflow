@@ -171,8 +171,8 @@ def write_secret(path, data):
 print('Seeding Airflow Variables:')
 write_secret('airflow/variables/keycloak_admin_password', {'value': 'admin'})
 write_secret('airflow/variables/keycloak_client_secret', {'value': 'airflow-client-secret'})
-write_secret('airflow/variables/breakglass_password', {'value': 'ChangeMeInSecret123!'})
-write_secret('airflow/variables/alert_recipient', {'value': 'alerts@example.com'})
+alert_email = os.environ.get('AIRFLOW_ALERT_EMAIL', 'alerts@example.com')
+write_secret('airflow/variables/alert_recipient', {'value': alert_email})
 
 print('Seeding Airflow Configs (Keys & Parameters):')
 write_secret('airflow/config/core/fernet_key', {'value': '2SL0kSlBxSYcpJnwzhBCWFlGf0mxEao2='})
@@ -191,11 +191,11 @@ write_secret('airflow/connections/postgres_default', {
 write_secret('airflow/connections/smtp_default', {
     'conn_type': 'smtp',
     'host': 'smtp.gmail.com',
-    'login': 'alerts@example.com',
+    'login': alert_email,
     'password': smtp_pwd,
     'port': 587,
     'extra': json.dumps({
-        'from_email': 'alerts@example.com',
+        'from_email': alert_email,
         'disable_ssl': True,
         'disable_tls': False
     })

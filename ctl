@@ -200,15 +200,17 @@ case "${cmd}" in
         ;;
 
     test-grafana-alert)
-        echo -e "${CYAN}Triggering Grafana Alerting notification test to Gmail (alerts@example.com)...${NC}"
+        ALERT_TARGET="${AIRFLOW_ALERT_EMAIL:-alerts@example.com}"
+        echo -e "${CYAN}Triggering Grafana Alerting notification test to (${ALERT_TARGET})...${NC}"
         NODE_IP=$(docker inspect airflow-local-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "172.18.0.2")
         python3 -c '
-import urllib.request, json, base64, ssl, sys
+import urllib.request, json, base64, ssl, sys, os
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
+target = os.environ.get("AIRFLOW_ALERT_EMAIL", "alerts@example.com")
 auth = base64.b64encode(b"admin:admin").decode()
 headers = {"Authorization": f"Basic {auth}", "Content-Type": "application/json"}
 body = {
@@ -219,7 +221,7 @@ body = {
                 {
                     "name": "email-admin",
                     "type": "email",
-                    "settings": {"addresses": "alerts@example.com"}
+                    "settings": {"addresses": target}
                 }
             ]
         }
@@ -231,7 +233,7 @@ try:
     result = json.loads(res.read().decode())
     status = result["receivers"][0]["grafana_managed_receiver_configs"][0].get("status", "unknown")
     if status == "ok":
-        print("\033[0;32m[SUCCESS] Grafana test alert email successfully sent to alerts@example.com!\033[0m")
+        print(f"\033[0;32m[SUCCESS] Grafana test alert email successfully sent to {target}!\033[0m")
     else:
         err = result["receivers"][0]["grafana_managed_receiver_configs"][0].get("error", "Unknown error")
         print(f"\033[1;33m[NOTICE] Grafana attempted email delivery: {err}\033[0m")

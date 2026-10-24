@@ -50,7 +50,7 @@ echo "=== 4. Checking Gmail SMTP Secret ==="
 if ! kubectl get secret airflow-smtp-secret -n "${NAMESPACE}" >/dev/null 2>&1; then
     echo "----------------------------------------------------------------------"
     echo "NOTICE: Secret 'airflow-smtp-secret' not found in namespace '${NAMESPACE}'."
-    echo "To send failure emails from alerts@example.com, a 16-char Google App Password is required."
+    echo "To send failure emails via SMTP, an App Password is required."
     echo ""
     GMAIL_PASS="${GMAIL_APP_PASSWORD:-}"
     if [[ -z "${GMAIL_PASS}" ]]; then

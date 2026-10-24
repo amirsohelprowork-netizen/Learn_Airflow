@@ -183,7 +183,7 @@
     {
       "username": "breakglass",
       "enabled": true,
-      "email": "alerts@example.com",
+      "email": "admin@example.org",
       "firstName": "Break",
       "lastName": "Glass",
       "credentials": [{ "type": "password", "value": "ChangeMeInSecret123!", "temporary": false }],

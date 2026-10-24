@@ -115,7 +115,7 @@ sudo ./ctl hosts
 # Restore OpenLDAP directory from MinIO S3 backup
 ./ctl ldap restore
 
-# Trigger failure alert email to Gmail (alerts@example.com)
+# Trigger failure alert email via SMTP
 ./ctl test-alert
 
 # Trigger Grafana platform health alert email to Gmail

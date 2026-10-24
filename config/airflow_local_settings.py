@@ -40,9 +40,10 @@ content_template = (
 try:
     from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 
+    alert_recipient = os.getenv("AIRFLOW_ALERT_EMAIL", "alerts@example.com")
     DEFAULT_FAILURE_NOTIFIER = send_smtp_notification(
-        from_email="Airflow Alert <alerts@example.com>",
-        to="alerts@example.com",
+        from_email=f"Airflow Alert <{alert_recipient}>",
+        to=alert_recipient,
         subject=subject_template,
         html_content=content_template,
     )
