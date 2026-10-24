@@ -449,6 +449,15 @@ print(obj["Body"].read().decode("utf-8"))
         action="${2:-plan}"
         shift 2 2>/dev/null || shift 1 2>/dev/null || true
         TF_DIR="${ROOT_DIR}/terraform"
+
+        # Ensure MinIO S3 storage is running and airflow-tfstate bucket exists
+        if ! curl -s --max-time 2 http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+            echo -e "${CYAN}Starting MinIO S3 storage for Terraform state backend...${NC}"
+            docker start airflow-minio >/dev/null 2>&1 || "${ROOT_DIR}/scripts/setup-s3.sh" >/dev/null 2>&1 || true
+            sleep 2
+        fi
+        docker exec airflow-minio mkdir -p /data/airflow-tfstate 2>/dev/null || true
+
         case "${action}" in
             init)
                 terraform -chdir="${TF_DIR}" init "$@"

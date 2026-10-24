@@ -55,8 +55,8 @@ for i in {1..30}; do
     sleep 1
 done
 
-echo "Ensuring 'airflow-logs' and 'airflow-backups' buckets exist in MinIO..."
-docker exec "${MINIO_CONTAINER}" mkdir -p /data/airflow-logs /data/airflow-backups
+echo "Ensuring 'airflow-logs', 'airflow-backups', and 'airflow-tfstate' buckets exist in MinIO..."
+docker exec "${MINIO_CONTAINER}" mkdir -p /data/airflow-logs /data/airflow-backups /data/airflow-tfstate
 
 echo -e "${CYAN}=== 2. Connecting MinIO S3 to Kubernetes KinD Cluster ===${NC}"
 if kubectl cluster-info >/dev/null 2>&1; then

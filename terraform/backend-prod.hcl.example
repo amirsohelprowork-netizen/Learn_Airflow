@@ -1,0 +1,8 @@
+# Sample AWS S3 Remote Backend Configuration for Production
+# Usage: terraform init -backend-config=backend-prod.hcl -reconfigure
+
+bucket         = "company-airflow-tfstate-prod"
+key            = "airflow/prod/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "terraform-locks"
+encrypt        = true

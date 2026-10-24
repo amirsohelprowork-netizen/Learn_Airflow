@@ -106,3 +106,27 @@ cp terraform.tfvars.example terraform.tfvars
 | `alert_email` | Sender and recipient email for alert drills | `"alerts@example.com"` |
 | `deploy_addons` | Whether to deploy Ingress, cert-manager, KEDA, Observability | `true` |
 | `deploy_airflow_helm` | Whether to deploy the Airflow Helm chart | `true` |
+
+---
+
+## Remote S3 State Backend
+
+Terraform state is maintained remotely in S3 storage using the official `s3` backend declared in [`backend.tf`](backend.tf):
+
+### 1. Local S3 Storage (MinIO)
+By default, the state is stored in the local S3-compatible MinIO bucket:
+- **Bucket**: `s3://airflow-tfstate`
+- **Key**: `airflow/local/terraform.tfstate`
+- **Endpoint**: `http://localhost:9000`
+- **Access / Secret Keys**: `minioadmin` / `minioadmin`
+
+Whenever you run `./ctl terraform init` or `./ctl terraform plan`, `./ctl` automatically verifies that MinIO is running and that the `airflow-tfstate` bucket exists.
+
+### 2. Transitioning to Enterprise AWS S3 in Production
+To use Amazon S3 with DynamoDB state locking in production:
+1. Configure [`backend-prod.hcl`](backend-prod.hcl.example) with your production AWS bucket and DynamoDB table.
+2. Re-initialize Terraform with the remote backend configuration:
+   ```bash
+   terraform init -backend-config=backend-prod.hcl -reconfigure
+   ```
+
