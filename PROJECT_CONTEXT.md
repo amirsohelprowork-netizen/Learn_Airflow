@@ -64,6 +64,7 @@ All core services run within the local KinD cluster (`airflow-local`) under the 
 | **MinIO S3 API** | S3 API Endpoint | [http://localhost:9000](http://localhost:9000) | `s3.airflow.svc.cluster.local:9000` |
 | **PostgreSQL 16** | Metadata DB | Cluster Internal | `postgres.airflow.svc.cluster.local:5432` |
 | **Redis 7.2** | Celery Broker | Cluster Internal | `redis.airflow.svc.cluster.local:6379` |
+| **Artifactory / Nexus** | Central Artifact Proxy (PyPI, Docker, Helm) | [http://localhost:8085](http://localhost:8085) | `artifactory.airflow.svc.cluster.local:8085` |
 | **Gmail Alerts** | Outbound Failure SMTP | Outbound | `smtp.gmail.com:587` (STARTTLS) |
 
 ---

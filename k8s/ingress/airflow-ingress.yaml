@@ -36,6 +36,10 @@ spec:
         - ldap.local
         - ldap.172.18.0.2.nip.io
       secretName: ldap-tls-secret
+    - hosts:
+        - artifactory.local
+        - artifactory.172.18.0.2.nip.io
+      secretName: artifactory-tls-secret
   rules:
     # Airflow UI & API
     - host: airflow.local
@@ -168,6 +172,28 @@ spec:
                 name: phpldapadmin
                 port:
                   number: 80
+
+    # Artifactory (Nexus 3 OSS) Console & API
+    - host: artifactory.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: artifactory
+                port:
+                  number: 8085
+    - host: artifactory.172.18.0.2.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: artifactory
+                port:
+                  number: 8085
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

@@ -15,7 +15,12 @@ COPY --chown=airflow:0 constraints/constraints-3.12.txt /opt/airflow/constraints
 COPY --chown=airflow:0 requirements.txt /opt/airflow/requirements/requirements.txt
 
 USER airflow
+ARG PIP_INDEX_URL="http://localhost:8085/repository/pypi-proxy/simple/"
+ARG PIP_TRUSTED_HOST="localhost"
+
 RUN pip install --no-cache-dir \
+        --index-url "${PIP_INDEX_URL}" \
+        --trusted-host "${PIP_TRUSTED_HOST}" \
         --constraint /opt/airflow/constraints/constraints-3.12.txt \
         "apache-airflow==${AIRFLOW_VERSION}" \
         -r /opt/airflow/requirements/requirements.txt

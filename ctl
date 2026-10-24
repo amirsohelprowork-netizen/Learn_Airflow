@@ -35,6 +35,7 @@ usage() {
     echo "  logs [pod]     Tail logs for worker, scheduler, or keycloak (default: worker)"
     echo "  vault [action] Manage external HashiCorp Vault (status, ui, start, seed)"
     echo "  ldap [action]  Manage Enterprise OpenLDAP (status, ui, add-user, list-users, list-groups, backup, restore, sync)"
+    echo "  artifactory [act] Manage central Artifactory / Nexus (status, ui, start)"
     echo "  bundle         Export repository to a single text file (repo_bundle.txt)"
     echo "  help           Display this help screen"
 }
@@ -53,7 +54,7 @@ case "${cmd}" in
         kubectl get pods -n keda 2>/dev/null || true
         echo ""
         echo -e "${CYAN}=== External Infrastructure Services (Data & Security) ===${NC}"
-        docker ps --filter "name=^/airflow-(keycloak|openldap|phpldapadmin|postgres|redis|vault|minio)$" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        docker ps --filter "name=^/airflow-(keycloak|openldap|phpldapadmin|postgres|redis|vault|minio|artifactory)$" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         echo ""
         NODE_IP=$(docker inspect airflow-local-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "172.18.0.2")
         echo -e "${GREEN}=== Secure Enterprise Ingress Endpoints (HTTPS / TLS) ===${NC}"
@@ -65,6 +66,7 @@ case "${cmd}" in
         echo -e "  HashiCorp Vault: ${CYAN}https://vault.local${NC}    or  ${YELLOW}https://vault.${NODE_IP}.nip.io${NC}"
         echo -e "  MinIO Console:   ${CYAN}https://minio.local${NC}    or  ${YELLOW}https://minio.${NODE_IP}.nip.io${NC}"
         echo -e "  phpLDAPadmin:    ${CYAN}https://ldap.local${NC}     or  ${YELLOW}https://ldap.${NODE_IP}.nip.io${NC}"
+        echo -e "  Artifactory UI:  ${CYAN}https://artifactory.local${NC} or  ${YELLOW}https://artifactory.${NODE_IP}.nip.io${NC}"
         echo ""
         echo -e "${GREEN}=== Direct Port Endpoints (HTTP Fallback) ===${NC}"
         echo -e "  Airflow Web UI:  http://localhost:8080"
@@ -74,6 +76,10 @@ case "${cmd}" in
         echo -e "  MinIO Console:   http://localhost:9001  (User: minioadmin | Pass: minioadmin)"
         echo -e "  phpLDAPadmin:    http://localhost:8082  (Login DN: cn=admin,dc=example,dc=org | Pass: admin)"
         echo -e "  OpenLDAP Server: ldap://localhost:389"
+        echo -e "  Artifactory UI:  http://localhost:8085  (User: admin | Pass: admin123)"
+        echo -e "  Artifactory PyPI: http://localhost:8085/repository/pypi-proxy/simple/"
+        echo -e "  Artifactory Helm: http://localhost:8085/repository/helm-proxy/"
+        echo -e "  Artifactory Docker: http://localhost:5000"
         echo ""
         echo -e "${GREEN}=== Enterprise Users & RBAC Matrix (Source: OpenLDAP) ===${NC}"
         echo "  alice          (Admin)              -> Pass: Alice-lab-1     (LDAP Group: airflow-admins)"
@@ -93,8 +99,8 @@ case "${cmd}" in
         ;;
 
     build)
-        echo -e "${CYAN}Building learn-airflow:3.3.2-python3.12...${NC}"
-        docker build -t learn-airflow:3.3.2-python3.12 "${ROOT_DIR}"
+        echo -e "${CYAN}Building learn-airflow:3.3.2-python3.12 via Artifactory PyPI proxy...${NC}"
+        docker build --network=host -t learn-airflow:3.3.2-python3.12 "${ROOT_DIR}"
         ;;
 
     autoscaler|keda)
@@ -405,6 +411,32 @@ print(obj["Body"].read().decode("utf-8"))
                 ;;
             *)
                 echo -e "${RED}Unknown ldap action: ${action}. Use: status, ui, start, add-user, list-users, list-groups, backup, restore, sync${NC}"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    artifactory)
+        action="${2:-status}"
+        case "${action}" in
+            status)
+                echo -e "${CYAN}=== Artifactory Container Status ===${NC}"
+                docker ps --filter "name=^/airflow-artifactory$" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                echo ""
+                echo -e "${CYAN}=== PyPI Proxy Probe (apache-airflow) ===${NC}"
+                curl -s --max-time 5 -o /dev/null -w "HTTP Response: %{http_code} (Endpoint: http://localhost:8085/repository/pypi-proxy/simple/apache-airflow/)\n" http://localhost:8085/repository/pypi-proxy/simple/apache-airflow/ || echo "PyPI proxy unreachable"
+                echo ""
+                echo -e "${CYAN}=== Helm Proxy Probe ===${NC}"
+                curl -s --max-time 3 -o /dev/null -w "HTTP Response: %{http_code} (Endpoint: http://localhost:8085/repository/helm-proxy/index.yaml)\n" http://localhost:8085/repository/helm-proxy/index.yaml || echo "Helm proxy unreachable"
+                ;;
+            ui)
+                echo -e "${GREEN}Artifactory Console: http://localhost:8085${NC} (User: admin | Pass: admin123)"
+                ;;
+            start)
+                "${ROOT_DIR}/scripts/setup-artifactory.sh"
+                ;;
+            *)
+                echo -e "${RED}Unknown artifactory action: ${action}. Use: status, ui, start${NC}"
                 exit 1
                 ;;
         esac

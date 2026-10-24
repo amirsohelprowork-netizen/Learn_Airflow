@@ -37,6 +37,425 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 16:04 — verify git working tree status
+
+**Command**
+
+```bash
+git status -s
+```
+
+**Result:** worked
+
+**Why:** Review all changed and newly created files for Artifactory integration.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 16:04 — test ctl artifactory status probe for apache-airflow package
+
+**Command**
+
+```bash
+./ctl artifactory status
+```
+
+**Result:** worked
+
+**Why:** Verify targeted PyPI probe returns HTTP 200 promptly.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 16:03 — test ctl artifactory status with optimized probes
+
+**Command**
+
+```bash
+./ctl artifactory status
+```
+
+**Result:** worked
+
+**Why:** Verify ctl artifactory outputs HTTP 200 responses cleanly for both PyPI and Helm proxies.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 16:03 — test ctl artifactory status
+
+**Command**
+
+```bash
+./ctl artifactory status
+```
+
+**Result:** worked
+
+**Why:** Verify ctl artifactory subcommand reports container health and active repository endpoints.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:59 — test Helm proxy after accepting EULA
+
+**Command**
+
+```bash
+curl -s -I http://localhost:8085/repository/helm-proxy/index.yaml
+```
+
+**Result:** worked
+
+**Why:** Verify Helm proxy responds with HTTP 200 after EULA acceptance.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:59 — send EULA with full disclaimer
+
+**Command**
+
+```bash
+python3 -c '
+import urllib.request, json, base64
+
+auth = base64.b64encode(b"admin:admin123").decode("ascii")
+req = urllib.request.Request("http://localhost:8085/service/rest/v1/system/eula", headers={"Authorization": f"Basic {auth}"})
+data = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+data["accepted"] = True
+
+post_req = urllib.request.Request(
+    "http://localhost:8085/service/rest/v1/system/eula",
+    data=json.dumps(data).encode("utf-8"),
+    headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"},
+    method="POST"
+)
+try:
+    resp = urllib.request.urlopen(post_req)
+    print("STATUS:", resp.status, resp.read().decode("utf-8"))
+except Exception as e:
+    print("ERROR:", e)
+'
+```
+
+**Result:** worked
+
+**Why:** Programmatically fetch current disclaimer and post back with accepted: true.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:58 — inspect POST system/eula response
+
+**Command**
+
+```bash
+curl -s -i -X POST -u admin:admin123 -H "Content-Type: application/json" -d '{"accepted": true}' http://localhost:8085/service/rest/v1/system/eula
+```
+
+**Result:** worked
+
+**Why:** Read HTTP status and error body for setting EULA.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:58 — accept Community Edition EULA via REST API
+
+**Command**
+
+```bash
+curl -s -f -X POST -u admin:admin123 -H "Content-Type: application/json" -d '{"accepted": true}' http://localhost:8085/service/rest/v1/system/eula
+```
+
+**Result:** worked
+
+**Why:** Programmatically accept Community Edition EULA to unlock all proxy repositories.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:58 — query system/eula status
+
+**Command**
+
+```bash
+curl -s -u admin:admin123 http://localhost:8085/service/rest/v1/system/eula
+```
+
+**Result:** worked
+
+**Why:** Check the schema and current status of Community Edition Eula.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:58 — search swagger for eula / onboarding endpoints
+
+**Command**
+
+```bash
+curl -s -u admin:admin123 http://localhost:8085/service/rest/swagger.json | grep -i -E "eula|license|terms" || true
+```
+
+**Result:** worked
+
+**Why:** Identify the API to accept the CE EULA programmatically.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:54 — check Nexus onboarding REST API
+
+**Command**
+
+```bash
+curl -s -u admin:admin123 http://localhost:8085/service/rest/swagger.json | grep -o '"/[^"]*onboarding[^"]*"' || true
+```
+
+**Result:** worked
+
+**Why:** Discover the exact REST endpoint to accept the EULA.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:54 — inspect Helm proxy 403 Forbidden response
+
+**Command**
+
+```bash
+curl -s http://localhost:8085/repository/helm-proxy/index.yaml
+```
+
+**Result:** worked
+
+**Why:** Read the 403 error detail from Nexus for the Helm proxy.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:53 — test Artifactory Helm proxy endpoint
+
+**Command**
+
+```bash
+curl -s -I http://localhost:8085/repository/helm-proxy/index.yaml
+```
+
+**Result:** worked
+
+**Why:** Verify Artifactory Helm proxy responds with HTTP 200 for index.yaml.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:53 — test Artifactory PyPI proxy endpoint
+
+**Command**
+
+```bash
+curl -s -I http://localhost:8085/repository/pypi-proxy/simple/
+```
+
+**Result:** worked
+
+**Why:** Verify Artifactory PyPI proxy responds with HTTP 200 to anonymous requests.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:52 — launch and configure external Artifactory container
+
+**Command**
+
+```bash
+./scripts/setup-artifactory.sh
+```
+
+**Result:** worked
+
+**Why:** Start Nexus 3 OSS container, wait for readiness, set credentials, and initialize PyPI, Docker, and Helm proxy repositories.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:51 — make setup-artifactory.sh executable
+
+**Command**
+
+```bash
+chmod +x scripts/setup-artifactory.sh
+```
+
+**Result:** worked
+
+**Why:** Grant execution permissions to setup-artifactory script.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:49 — check host disk space
+
+**Command**
+
+```bash
+df -h /
+```
+
+**Result:** worked
+
+**Why:** Ensure sufficient disk capacity for artifact repository data.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:49 — check host memory and resources
+
+**Command**
+
+```bash
+free -m
+```
+
+**Result:** worked
+
+**Why:** Ensure sufficient host RAM for running the artifact repository alongside KinD and Airflow.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:49 — check local docker images for repository/nexus/artifactory
+
+**Command**
+
+```bash
+docker images | grep -E "nexus|artifactory" || true
+```
+
+**Result:** worked
+
+**Why:** Check if any Nexus or Artifactory image is already cached locally.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
+### 2026-10-24 15:49 — check running docker containers
+
+**Command**
+
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+```
+
+**Result:** worked
+
+**Why:** Inspect running containers and port allocations.
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** n/a
+
 ### 2026-10-22 02:38 — verify repository working tree status
 
 **Command**

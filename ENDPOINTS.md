@@ -1,6 +1,6 @@
 # Cluster Access & UI Endpoints Reference
 
-This document provides a complete directory of all **8 Web UIs, Consoles, and Access Endpoints** running in the Apache Airflow 3 Enterprise Kubernetes lab, along with authentication credentials, team personas, and network routing details.
+This document provides a complete directory of all **9 Web UIs, Consoles, and Access Endpoints** running in the Apache Airflow 3 Enterprise Kubernetes lab, along with authentication credentials, team personas, and network routing details.
 
 ---
 
@@ -18,6 +18,7 @@ All web interfaces are available via **Enterprise TLS Ingress** (HTTPS) and dire
 | **MinIO S3 Console** | [https://minio.local](https://minio.local)<br>*(or [nip.io](https://minio.172.18.0.2.nip.io))* | [http://localhost:9001](http://localhost:9001) | **User:** `minioadmin`<br>**Pass:** `minioadmin` | S3-compatible remote storage: inspect persisted task logs under bucket `s3://airflow-logs`. |
 | **HashiCorp Vault UI** | [https://vault.local](https://vault.local)<br>*(or [nip.io](https://vault.172.18.0.2.nip.io))* | [http://localhost:8200](http://localhost:8200) | **Method:** Token<br>**Token:** `airflow-vault-root-token-2026` | Enterprise secrets management: KV v2 secrets engine, connection URIs, AppRole, and Kubernetes auth backends. |
 | **phpLDAPadmin** | [https://ldap.local](https://ldap.local)<br>*(or [nip.io](https://ldap.172.18.0.2.nip.io))* | [http://localhost:8082](http://localhost:8082) | **DN:** `cn=admin,dc=example,dc=org`<br>**Pass:** `admin` | Active Directory / LDAP directory tree browser: view/edit users (`ou=users`) and security groups (`ou=groups`). |
+| **Artifactory / Nexus** | [https://artifactory.local](https://artifactory.local)<br>*(or [nip.io](https://artifactory.172.18.0.2.nip.io))* | [http://localhost:8085](http://localhost:8085) | **User:** `admin`<br>**Pass:** `admin123` | Central Artifact Repository & Proxy: PyPI wheels proxy, Docker V2 registry proxy (:5000), and Airflow Helm chart proxy. |
 
 ---
 

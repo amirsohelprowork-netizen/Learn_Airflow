@@ -8,7 +8,7 @@ set -euo pipefail
 CLUSTER_NAME="airflow-local"
 NODE_IP=$(docker inspect "${CLUSTER_NAME}-control-plane" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "172.18.0.2")
 
-HOSTS_LINE="${NODE_IP} airflow.local auth.local flower.local grafana.local prometheus.local vault.local minio.local ldap.local"
+HOSTS_LINE="${NODE_IP} airflow.local auth.local flower.local grafana.local prometheus.local vault.local minio.local ldap.local artifactory.local"
 
 if grep -q "airflow.local" /etc/hosts; then
     echo "Entry for 'airflow.local' already exists in /etc/hosts:"

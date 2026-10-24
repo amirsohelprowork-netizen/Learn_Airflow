@@ -15,9 +15,12 @@ else
     echo "KinD cluster '${CLUSTER_NAME}' is already running."
 fi
 
-echo "=== 2. Building & Loading Docker Image into KinD ==="
-echo "Building ${IMAGE_TAG} with authlib..."
-docker build -t "${IMAGE_TAG}" "${ROOT_DIR}"
+echo "=== 1b. Starting External Artifactory (Nexus 3 OSS) ==="
+"${ROOT_DIR}/scripts/setup-artifactory.sh"
+
+echo "=== 2. Building & Loading Docker Image into KinD via Artifactory ==="
+echo "Building ${IMAGE_TAG} with dependencies resolved through Artifactory PyPI proxy..."
+docker build --network=host -t "${IMAGE_TAG}" "${ROOT_DIR}"
 echo "Loading ${IMAGE_TAG} into ${CLUSTER_NAME}..."
 kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
 
@@ -99,11 +102,11 @@ else
     BREAKGLASS_PASS=$(kubectl get secret "${BREAKGLASS_SECRET}" -n "${NAMESPACE}" -o jsonpath='{.data.password}' | base64 -d)
 fi
 
-echo "=== 5. Deploying Airflow with Helm ==="
-helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
-helm repo update apache-airflow
+echo "=== 5. Deploying Airflow with Helm via Artifactory ==="
+helm repo add artifactory-airflow http://localhost:8085/repository/helm-proxy/ 2>/dev/null || true
+helm repo update artifactory-airflow
 
-helm upgrade --install airflow apache-airflow/airflow \
+helm upgrade --install airflow artifactory-airflow/airflow \
     -f "${ROOT_DIR}/values.yaml" \
     --set-string createUserJob.defaultUser.password="${BREAKGLASS_PASS}" \
     --namespace "${NAMESPACE}"

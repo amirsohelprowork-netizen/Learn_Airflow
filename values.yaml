@@ -112,6 +112,10 @@ extraEnv: |
     value: "http://keycloak.airflow.svc.cluster.local:8080"
   - name: KEYCLOAK_EXTERNAL_URL
     value: "http://localhost:8081"
+  - name: PIP_INDEX_URL
+    value: "http://artifactory.airflow.svc.cluster.local:8085/repository/pypi-proxy/simple/"
+  - name: PIP_TRUSTED_HOST
+    value: "artifactory.airflow.svc.cluster.local"
 
 
 
