@@ -37,6 +37,28 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 23:16 — verify GitHub Actions pipeline completed successfully for latest commit
+
+**Command**
+
+```bash
+python3 scratch/check_jobs.py 40117584586
+```
+
+**Result:** worked
+
+**Why:** Authenticated query against GitHub REST API confirmed all 4 CI/CD quality gate jobs in run `40117584586` on branch `local-pipeline-fixes` passed with `conclusion: success` (Shell Scripts Syntax Check, Kubernetes & Helm YAML Lint, DAG Governance & Policy Tests, and Terraform Format & Validation).
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** Quality gate verified on remote CI.
+
+---
+
 ### 2026-10-24 23:14 — verify Keycloak OIDC authentication and team AD groups mapping
 
 **Command**
