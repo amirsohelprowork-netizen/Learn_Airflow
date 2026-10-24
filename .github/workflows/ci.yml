@@ -24,7 +24,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
 
       - name: Compile Python Files
         run: |
@@ -104,7 +103,7 @@ jobs:
           for p in files:
               try:
                   with open(p, 'r', encoding='utf-8') as f:
-                      list(yaml.safe_load_all(fp))
+                      list(yaml.safe_load_all(f))
               except Exception as err:
                   print(f'Error parsing {p}: {err}', file=sys.stderr)
                   failed = True

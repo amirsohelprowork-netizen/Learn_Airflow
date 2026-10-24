@@ -37,6 +37,72 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 22:49 — fix CI workflow pip cache error and YAML file handle name
+
+**Command**
+
+```bash
+git add .github/workflows/ci.yml && git commit -m "fix(ci): remove unused pip cache in dag-governance and fix file handle in yaml lint"
+```
+
+**Result:** worked
+
+**Why:** Resolved two GitHub Actions failures: (1) removed `cache: pip` from `dag-governance` because no pip dependencies are installed in that job, eliminating post-job cleanup error; (2) changed `list(yaml.safe_load_all(fp))` to `list(yaml.safe_load_all(f))` in `k8s-manifests` to fix undefined variable `fp`.
+
+**Next command**
+
+```bash
+git push
+```
+
+**Why the next command worked:** Triggered re-run of GitHub Actions pipeline with fixes applied.
+
+---
+
+### 2026-10-24 22:48 — inspect GitHub Actions job logs via API to diagnose CI failure
+
+**Command**
+
+```bash
+python3 scratch/get_job_logs.py <job_id>
+```
+
+**Result:** worked
+
+**Why:** Retrieved execution logs for failed jobs `120933995470` (`k8s-manifests`) and `120933995559` (`dag-governance`), identifying exact error lines: `name 'fp' is not defined` in yaml parser and `Cache folder path is retrieved for pip but doesn't exist on disk` in post-job cleanup.
+
+**Next command**
+
+```bash
+# Edit .github/workflows/ci.yml
+```
+
+**Why the next command worked:** Fixed the two identified issues in the workflow definition.
+
+---
+
+### 2026-10-24 22:47 — query GitHub Actions workflow runs via authenticated API
+
+**Command**
+
+```bash
+python3 scratch/check_ci.py
+```
+
+**Result:** worked
+
+**Why:** Authenticated to GitHub REST API using user-provided token in `.env`. Found active run `40114878397` on branch `local-pipeline-fixes` with conclusion `failure`.
+
+**Next command**
+
+```bash
+python3 scratch/check_jobs.py 40114878397
+```
+
+**Why the next command worked:** Enumerated jobs in run `40114878397` to pinpoint which specific jobs failed.
+
+---
+
 ### 2026-10-24 22:39 — attempt browser automation to monitor GitHub Actions UI
 
 **Command**
