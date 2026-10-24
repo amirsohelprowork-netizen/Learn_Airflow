@@ -37,6 +37,28 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-25 00:12 — public-proof git-sync HTTPS cloning, SSH deploy key fallback, and pre-flight guide
+
+**Command**
+
+```bash
+# Update values.yaml (repo to public HTTPS URL, branch to main), start-local-k8s.sh (automatic deploy key fallback), and README.md (Step 3 Pre-Flight Checklist)
+```
+
+**Result:** worked
+
+**Why:** Ensured that any public user cloning this repository can run `./ctl start` with zero configuration overhead: (1) gitSync uses public HTTPS so no SSH credentials are required to clone DAGs; (2) `start-local-k8s.sh` automatically creates a temporary deploy key if host lacks `~/.ssh/id_ed25519` so Kubernetes volume mounts never fail; (3) documented port checks, automated Vault secret seeding, and optional SMTP passwords in README.md.
+
+**Next command**
+
+```bash
+./ctl ci
+```
+
+**Why the next command worked:** Verified all 4 local quality gates passed cleanly.
+
+---
+
 ### 2026-10-24 23:58 — document operational evidence screenshots and setup runbook fixes in README.md
 
 **Command**

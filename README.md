@@ -786,23 +786,61 @@ helm version
 ### Step 2: Clone the Repository
 
 ```bash
-git clone git@github.com:your-org/airflow-enterprise-lab.git
-cd airflow-enterprise-lab
+git clone https://github.com/amirsohelprowork-netizen/Learn_Airflow.git
+cd Learn_Airflow
 ```
 
 ---
 
-### Step 3: Environment Setup & Notification Credentials
+### Step 3: Pre-Flight Checklist & Secrets Configuration (Before Starting)
 
-Configure optional environment variables for pipeline failure notifications:
+Before executing `./ctl start`, review this checklist to ensure your local environment is ready:
 
+#### 1. Verify Docker Engine & Permissions
+Ensure Docker daemon is active and your current user can interact with Docker without `sudo`:
 ```bash
-# (Optional) Export Gmail credentials for failure drill alerting:
-export GMAIL_APP_PASSWORD="your-16-char-app-password"
-export AIRFLOW_ALERT_EMAIL="your-email@example.com"
+docker info >/dev/null 2>&1 && echo "✅ Docker is running and accessible" || echo "❌ Docker is not running or current user lacks docker group permissions (run: sudo usermod -aG docker $USER && newgrp docker)"
 ```
 
-*Note: If omitted, the lab starts normally using placeholder credentials (`alerts@example.com`), and all local tests pass without sending outbound emails.*
+#### 2. Host Port Availability Check
+The platform publishes web consoles and APIs directly to host ports. Verify that none of the following ports are in use by existing host services (such as local PostgreSQL, Redis, or Apache/NGINX):
+```bash
+# Check all required host ports:
+sudo lsof -i :80 -i :443 -i :5000 -i :5432 -i :5555 -i :6379 -i :8080 -i :8081 -i :8082 -i :8085 -i :8200 -i :9000 -i :9001 2>/dev/null || true
+```
+> [!NOTE]
+> If you have a local PostgreSQL (`:5432`) or Redis (`:6379`) service already running on your machine (e.g., via `systemd`), stop them temporarily using:
+> `sudo systemctl stop postgresql redis-server 2>/dev/null || true`
+
+#### 3. Do I Need to Run Any Scripts or Generate Secrets First?
+**NO.** `./ctl start` is **100% self-bootstrapping and zero-touch**.
+- **Automated Container Setup**: `./ctl start` automatically spins up all external services (Nexus 3, OpenLDAP, Keycloak 26, PostgreSQL 16, Redis 7.2, HashiCorp Vault, MinIO S3).
+- **Automated Secret Generation**: Airflow Fernet encryption keys, Webserver secret keys, internal API server bearer tokens, Keycloak OIDC client credentials, and Vault root tokens are **generated, seeded, and linked automatically**.
+- **Automated SSH Deploy Key Fallback**: For git-sync, if neither `~/.ssh/id_ed25519` nor `~/.ssh/id_rsa` exists on your system, `./ctl start` automatically creates a temporary deploy key Kubernetes secret (`airflow-ssh-secret`) so pod volume mounts never crash.
+
+#### 4. Optional Pre-Start Customizations (Environment Variables)
+If you wish to customize administrator credentials or enable outbound email alerts before starting:
+```bash
+# Optional: Set a custom break-glass local administrator password (default: ChangeMeInSecret123!)
+export AIRFLOW_ADMIN_PASSWORD="MyCustomAdminPassword2026!"
+
+# Optional: Enable live pipeline failure alerts to your Gmail (STARTTLS)
+export GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"    # 16-character Google App Password
+export AIRFLOW_ALERT_EMAIL="your-email@gmail.com"  # Recipient email
+```
+*(If omitted, `./ctl start` automatically uses safe local defaults and placeholder secrets. All 4 CI/CD quality gates and DAGs operate normally without sending external emails).*
+
+#### 5. Git-Sync DAG Synchronization Configuration
+In [`values.yaml`](values.yaml), Airflow's `gitSync` sidecar is pre-configured to track the public repository over HTTPS:
+```yaml
+dags:
+  gitSync:
+    enabled: true
+    repo: "https://github.com/amirsohelprowork-netizen/Learn_Airflow.git"
+    branch: "main"
+```
+* **Public Cloning**: Works immediately over HTTPS without any GitHub tokens or SSH keys.
+* **If You Forked This Repository**: Simply update `repo: "https://github.com/<your-username>/Learn_Airflow.git"` in [`values.yaml`](values.yaml) before running `./ctl start` so git-sync pulls DAGs from your fork.
 
 ---
 

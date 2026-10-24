@@ -86,7 +86,14 @@ if ! kubectl get secret airflow-ssh-secret -n "${NAMESPACE}" >/dev/null 2>&1; th
             -n "${NAMESPACE}"
         echo "Created 'airflow-ssh-secret' from ${SSH_KEY_FILE}."
     else
-        echo "WARNING: No SSH key found at ~/.ssh/id_ed25519 or ~/.ssh/id_rsa for git-sync."
+        echo "No SSH key found at ~/.ssh/id_ed25519 or ~/.ssh/id_rsa. Generating temporary deploy key for git-sync..."
+        TMP_SSH_DIR=$(mktemp -d)
+        ssh-keygen -t ed25519 -N "" -f "${TMP_SSH_DIR}/id_ed25519" -q
+        kubectl create secret generic airflow-ssh-secret \
+            --from-file=gitSshKey="${TMP_SSH_DIR}/id_ed25519" \
+            -n "${NAMESPACE}"
+        rm -rf "${TMP_SSH_DIR}"
+        echo "Created placeholder 'airflow-ssh-secret'. For private Git repos, mount your registered GitHub SSH key."
     fi
 else
     echo "Secret 'airflow-ssh-secret' already exists."
