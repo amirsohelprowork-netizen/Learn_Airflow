@@ -37,6 +37,8 @@ usage() {
     echo "  ldap [action]  Manage Enterprise OpenLDAP (status, ui, add-user, list-users, list-groups, backup, restore, sync)"
     echo "  artifactory [act] Manage central Artifactory / Nexus (status, ui, start)"
     echo "  terraform [act] Manage local infrastructure via Terraform (init, plan, apply, destroy, status)"
+    echo "  ci             Run complete local CI/CD pipeline and quality gates"
+    echo "  hooks [action] Manage local Git pre-commit hooks (install, uninstall, status)"
     echo "  bundle         Export repository to a single text file (repo_bundle.txt)"
     echo "  help           Display this help screen"
 }
@@ -177,6 +179,114 @@ case "${cmd}" in
             echo -e "${YELLOW}Executing static AST & policy tests using host Python...${NC}"
             python3 "${ROOT_DIR}/tests/test_dag_governance.py"
         fi
+        ;;
+
+    ci)
+        echo -e "${CYAN}=== Running Local Enterprise CI/CD Pipeline & Quality Gates ===${NC}"
+        FAILED=0
+
+        # Gate 1: Python compilation & DAG governance tests
+        echo -e "\n${CYAN}[Gate 1/4] Python Compilation & DAG Governance Policy Tests${NC}"
+        if python3 -m py_compile "${ROOT_DIR}"/config/*.py "${ROOT_DIR}"/dags/**/*.py "${ROOT_DIR}"/scripts/*.py "${ROOT_DIR}"/tests/*.py 2>/dev/null && python3 -m unittest discover "${ROOT_DIR}/tests" -v; then
+            echo -e "${GREEN}✓ Gate 1 Passed: DAG governance and cluster policies verified.${NC}"
+        else
+            echo -e "${RED}✗ Gate 1 Failed: Python syntax error or DAG policy violation detected.${NC}"
+            FAILED=1
+        fi
+
+        # Gate 2: Shell scripts syntax validation
+        echo -e "\n${CYAN}[Gate 2/4] Shell Scripts Syntax Check${NC}"
+        if bash -n "${ROOT_DIR}/ctl" "${ROOT_DIR}"/scripts/*.sh; then
+            echo -e "${GREEN}✓ Gate 2 Passed: All shell scripts passed syntax inspection.${NC}"
+        else
+            echo -e "${RED}✗ Gate 2 Failed: Shell script syntax error detected.${NC}"
+            FAILED=1
+        fi
+
+        # Gate 3: Terraform formatting and validation
+        echo -e "\n${CYAN}[Gate 3/4] Terraform Format & Configuration Validation${NC}"
+        if command -v terraform >/dev/null 2>&1; then
+            if terraform -chdir="${ROOT_DIR}/terraform" fmt -check -recursive && \
+               terraform -chdir="${ROOT_DIR}/terraform" init -backend=false >/dev/null 2>&1 && \
+               terraform -chdir="${ROOT_DIR}/terraform" validate >/dev/null 2>&1; then
+                echo -e "${GREEN}✓ Gate 3 Passed: Terraform configuration is properly formatted and valid.${NC}"
+            else
+                echo -e "${RED}✗ Gate 3 Failed: Terraform formatting or validation failed.${NC}"
+                FAILED=1
+            fi
+        else
+            echo -e "${YELLOW}⚠ Gate 3 Skipped: terraform CLI is not installed on host.${NC}"
+        fi
+
+        # Gate 4: Kubernetes manifests & Helm values lint
+        echo -e "\n${CYAN}[Gate 4/4] Kubernetes Manifests & Helm Values Lint${NC}"
+        if python3 -c "
+import yaml, glob, sys
+files = glob.glob('${ROOT_DIR}/k8s/**/*.yaml', recursive=True) + ['${ROOT_DIR}/values.yaml']
+failed = False
+for f in files:
+    try:
+        with open(f, 'r', encoding='utf-8') as fp:
+            list(yaml.safe_load_all(fp))
+    except Exception as err:
+        print(f'Error parsing {f}: {err}', file=sys.stderr)
+        failed = True
+if failed:
+    sys.exit(1)
+print(f'All {len(files)} YAML manifests validated successfully.')
+"; then
+            echo -e "${GREEN}✓ Gate 4 Passed: All Kubernetes manifests and Helm values are syntactically valid.${NC}"
+        else
+            echo -e "${RED}✗ Gate 4 Failed: Invalid YAML syntax found in Kubernetes manifests or values.yaml.${NC}"
+            FAILED=1
+        fi
+
+        echo ""
+        if [[ ${FAILED} -eq 0 ]]; then
+            echo -e "${GREEN}======================================================================${NC}"
+            echo -e "${GREEN}✓ All Local Quality Gates Passed! Pipeline Successful.${NC}"
+            echo -e "${GREEN}======================================================================${NC}"
+            exit 0
+        else
+            echo -e "${RED}======================================================================${NC}"
+            echo -e "${RED}✗ Pipeline Failed! Please resolve the quality gate errors above.${NC}"
+            echo -e "${RED}======================================================================${NC}"
+            exit 1
+        fi
+        ;;
+
+    hooks)
+        action="${2:-install}"
+        case "${action}" in
+            install)
+                echo -e "${CYAN}Installing local Git pre-commit hook...${NC}"
+                mkdir -p "${ROOT_DIR}/.githooks"
+                cat << 'EOF' > "${ROOT_DIR}/.githooks/pre-commit"
+#!/usr/bin/env bash
+set -e
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+echo "Executing local pre-commit quality gate via ./ctl ci..."
+"${ROOT_DIR}/ctl" ci
+EOF
+                chmod +x "${ROOT_DIR}/.githooks/pre-commit"
+                git config core.hooksPath .githooks
+                echo -e "${GREEN}✓ Git hooks configured! Pre-commit hook points to .githooks/pre-commit.${NC}"
+                echo "Every 'git commit' will now automatically run the local quality gate pipeline."
+                ;;
+            uninstall)
+                echo -e "${YELLOW}Uninstalling local Git pre-commit hook...${NC}"
+                git config --unset core.hooksPath || true
+                echo -e "${GREEN}✓ Git hooks uninstalled.${NC}"
+                ;;
+            status)
+                current_hooks=$(git config --get core.hooksPath || echo "default (.git/hooks)")
+                echo "Current Git hooks path: ${current_hooks}"
+                ;;
+            *)
+                echo -e "${RED}Unknown hooks action: ${action}. Use: install, uninstall, status${NC}"
+                exit 1
+                ;;
+        esac
         ;;
 
     test-alert)

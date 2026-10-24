@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+echo "Executing local pre-commit quality gate via ./ctl ci..."
+"${ROOT_DIR}/ctl" ci

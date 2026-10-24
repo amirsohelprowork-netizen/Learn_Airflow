@@ -2,7 +2,7 @@
 # Airflow 3 + Keycloak Local Kubernetes Development Makefile
 # ==============================================================================
 
-.PHONY: help start stop status build test test-alert test-grafana-alert test-auth logs-worker logs-scheduler logs-keycloak tf-init tf-plan tf-apply tf-destroy bundle
+.PHONY: help start stop status build test ci hooks test-alert test-grafana-alert test-auth logs-worker logs-scheduler logs-keycloak tf-init tf-plan tf-apply tf-destroy bundle
 
 # Default target
 help: ## Show this help menu
@@ -35,6 +35,12 @@ test-alert: ## Trigger Airflow task failure alert email test to Gmail
 test-grafana-alert: ## Trigger Grafana Alerting notification test to Gmail
 	@./ctl test-grafana-alert
 
+
+ci: ## Run complete local CI/CD pipeline and quality gate
+	@./ctl ci
+
+hooks: ## Install local Git pre-commit hooks for automated quality gates
+	@./ctl hooks install
 
 test: ## Run CI/CD DAG governance and policy validation suite
 	@./ctl test
