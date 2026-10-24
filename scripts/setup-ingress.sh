@@ -38,7 +38,7 @@ else
 fi
 
 echo -e "${CYAN}=== 3. Deploying NGINX Ingress Controller ===${NC}"
-if ! kubectl get pods -n ingress-nginx -l app.kubernetes.io/component=controller >/dev/null 2>&1; then
+if ! kubectl get deployment ingress-nginx-controller -n ingress-nginx >/dev/null 2>&1; then
     echo "Applying NGINX Ingress Controller for KinD..."
     kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 fi

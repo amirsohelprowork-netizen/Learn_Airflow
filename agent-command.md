@@ -37,6 +37,74 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 23:22 — test all ingress domain routes via localhost port forwarding
+
+**Command**
+
+```bash
+for host in airflow.local auth.local flower.local grafana.local prometheus.local vault.local minio.local ldap.local artifactory.local; do
+  curl -k -s -o /dev/null -w "%{http_code}" --resolve ${host}:443:127.0.0.1 https://${host}/
+done
+```
+
+**Result:** worked
+
+**Why:** Verified all 9 enterprise ingress hostnames resolve and respond through NGINX Ingress Controller via host loopback port 443 (`airflow.local` -> 200, `grafana.local` -> 200, `minio.local` -> 200, `artifactory.local` -> 200, OIDC/Vault -> 302/307).
+
+**Next command**
+
+```bash
+none
+```
+
+**Why the next command worked:** Quality gate verified.
+
+---
+
+### 2026-10-24 23:20 — deploy missing ingress-nginx controller and wait for readiness
+
+**Command**
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml && kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+```
+
+**Result:** worked
+
+**Why:** Fixed bug in `scripts/setup-ingress.sh` where `kubectl get pods -n ingress-nginx` exited 0 despite 0 pods existing. Deployed NGINX Ingress Controller for KinD and waited until `ingress-nginx-controller` pod reached 1/1 Running state.
+
+**Next command**
+
+```bash
+curl -k -s -o /dev/null -w "%{http_code}\n" https://localhost -H "Host: airflow.local"
+```
+
+**Why the next command worked:** Validated TLS termination and HTTP 200 response on Airflow Web UI endpoint.
+
+---
+
+### 2026-10-24 23:19 — diagnose airflow.local ERR_CONNECTION_REFUSED (stale /etc/hosts & missing ingress controller)
+
+**Command**
+
+```bash
+grep -i "airflow.local" /etc/hosts && docker inspect airflow-local-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+```
+
+**Result:** worked
+
+**Why:** Identified two root causes for browser connection refusal: (1) `/etc/hosts` contained a stale entry pointing `airflow.local` to `172.18.0.2` (`airflow-artifactory`) instead of the KinD cluster; (2) `ingress-nginx-controller` was not running because the deployment check in `scripts/setup-ingress.sh` evaluated false.
+
+**Next command**
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+```
+
+**Why the next command worked:** Started installation of the NGINX Ingress Controller.
+
+---
+
 ### 2026-10-24 23:16 — verify GitHub Actions pipeline completed successfully for latest commit
 
 **Command**
