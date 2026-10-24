@@ -37,6 +37,28 @@ Do not log secrets, tokens, passwords, or private keys. Redact them as `<redacte
 
 ## Entries
 
+### 2026-10-24 22:31 — commit local pipeline and pre-commit hook implementation
+
+**Command**
+
+```bash
+git commit -m "feat: implement local CI pipeline and git pre-commit hooks"
+```
+
+**Result:** worked
+
+**Why:** Triggered the pre-commit hook (`.githooks/pre-commit`), which ran `./ctl ci`. All 4 local quality gates passed cleanly and the commit was created (`6731d54`).
+
+**Next command**
+
+```bash
+git status
+```
+
+**Why the next command worked:** Verified clean working tree on branch `local-pipeline-fixes`.
+
+---
+
 ### 2026-10-24 22:30 — install git pre-commit hook pointing to local ci pipeline
 
 **Command**
