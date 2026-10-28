@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import re
 import subprocess
+import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
@@ -25,7 +26,11 @@ def portable_svg(path: Path) -> None:
 
 
 def main() -> None:
-    for name in ('overview', 'runtime', 'authentication', 'delivery'):
+    names = ('overview', 'runtime', 'authentication', 'delivery', 'production')
+    selected = sys.argv[1:] or names
+    if any(name not in names for name in selected):
+        raise SystemExit(f'Expected diagram names from {names}')
+    for name in selected:
         subprocess.run([
             'docker', 'run', '--rm', '--network', 'none', '-u', f'{os.getuid()}:{os.getgid()}',
             '-v', f'{ROOT}:/data', IMAGE,

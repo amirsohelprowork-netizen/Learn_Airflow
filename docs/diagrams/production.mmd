@@ -1,0 +1,38 @@
+flowchart TB
+    accTitle: Proposed production Airflow architecture
+    accDescr: Proposed deployment, not the running local lab. Multi-node Kubernetes hosts replicated Airflow and monitoring. Production identity, Vault, PostgreSQL, Redis, object storage and email are independently operated. CI promotes an immutable image through a reviewed deployment. External services use TLS; the internal Execution API needs additional mTLS if required by the platform.
+
+    users["Users / corporate access<br/>HTTPS + OIDC / MFA"]
+    release["Reviewed image delivery<br/>GitHub Actions: tests + scan + build<br/>Private registry: image by digest<br/>Helm or GitOps promotion"]
+
+    subgraph cluster["PRODUCTION KUBERNETES"]
+        ingress["Load balancer + Traefik<br/>Trusted HTTPS certificate"]
+        airflow["Airflow across multiple nodes<br/>API x2 / Scheduler x2<br/>DAG processor x2 / Triggerer x2<br/>Celery workers x3 initially"]
+        metrics["Prometheus + Grafana<br/>Alertmanager / on-call routing"]
+    end
+
+    subgraph services["PRODUCTION SERVICES"]
+        identity["Identity<br/>HA Keycloak + corporate LDAP<br/>MFA / restricted administration"]
+        data["Data services / verified TLS<br/>HA PostgreSQL: metadata + results<br/>HA Redis: Celery broker<br/>S3 or HA object storage: logs + reports"]
+        vault["HA Vault / verified TLS<br/>Scoped Kubernetes authentication<br/>External Secrets for bootstrap values"]
+        mail["Approved SMTP relay<br/>Authenticated TLS delivery"]
+    end
+
+    users -->|HTTPS| ingress --> airflow
+    users -->|OIDC| identity
+    airflow -->|HTTPS backchannel| identity
+    airflow <-->|SQL / broker / object API| data
+    airflow -->|Connection lookup| vault
+    airflow -->|Task failure email| mail
+    airflow -->|Metrics| metrics
+    metrics -->|Operational alerts| mail
+    release -.->|Same tested image for all components| airflow
+
+    classDef compute fill:#eaf2ff,stroke:#6389be,color:#172b4d
+    classDef persistent fill:#e5f7f0,stroke:#46977c,color:#153f32
+    classDef security fill:#fff4d6,stroke:#c59b38,color:#594214
+    classDef observe fill:#f0eaff,stroke:#9673c8,color:#3e285c
+    class airflow,ingress,release compute
+    class data persistent
+    class identity,vault security
+    class metrics,mail observe

@@ -14,6 +14,14 @@ See [the recorded validation results](docs/VALIDATION.md).
 
 Read [the local setup guide](docs/LOCAL_SETUP.md) for prerequisites, generated credentials, endpoints, testing, Terraform, persistence, and explicit local security limits.
 
+## Production deployment and login URLs
+
+**[Production architecture, tool choices and deployment instructions](docs/PRODUCTION.md)** · **[All local login URLs](ENDPOINTS.md)**
+
+The [production Helm values example](deploy/production/values.example.yaml) is separate from the local profile. Production dependencies and infrastructure must be provisioned independently; the example has been chart-rendered, not deployed to production.
+
+![Proposed production Airflow architecture](docs/diagrams/production.svg)
+
 ## Architecture
 
 ![Architecture of the local Airflow platform](docs/diagrams/overview.svg)

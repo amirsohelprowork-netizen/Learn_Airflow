@@ -1,5 +1,7 @@
 # Sample AWS S3 Remote Backend Configuration for Production
-# Usage: terraform init -backend-config=backend-prod.hcl -reconfigure
+# Only for a SEPARATE production IaC root declaring backend "s3" {}.
+# The current terraform/ root declares a local backend: these options do not apply.
+# See docs/PRODUCTION.md; do not reconfigure the local lab with this file.
 
 bucket         = "company-airflow-tfstate-prod"
 key            = "airflow/prod/terraform.tfstate"

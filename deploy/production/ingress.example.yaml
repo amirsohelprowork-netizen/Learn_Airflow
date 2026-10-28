@@ -1,0 +1,22 @@
+# Provision airflow-prod-tls first through your production certificate manager.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: airflow
+  namespace: airflow
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [airflow.example.com]
+      secretName: airflow-prod-tls
+  rules:
+    - host: airflow.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airflow-api-server
+                port:
+                  number: 8080

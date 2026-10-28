@@ -1,0 +1,238 @@
+# Standalone EXAMPLE for official Apache Airflow Helm chart 1.22.0.
+# Do not overlay values.yaml or use ./ctl to deploy production.
+# Replace every example hostname, bucket, image tag and zero digest first.
+# Dependencies, secrets, ingress and network controls: docs/PRODUCTION.md.
+# Fixed three workers initially; enable KEDA only after testing scaler TLS.
+# Migrations use chart post-install/post-upgrade hooks: no Helm --wait/--atomic.
+# Resource sizes are starting points, not a measured capacity guarantee.
+airflowVersion: 3.3.2
+defaultAirflowRepository: registry.example.com/platform/airflow
+defaultAirflowTag: replace-with-release-tag
+images:
+  airflow:
+    repository: registry.example.com/platform/airflow
+    tag: replace-with-release-tag
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    pullPolicy: IfNotPresent
+uid: 50000
+gid: 0
+securityContexts:
+  pod:
+    runAsNonRoot: true
+    runAsUser: 50000
+    fsGroup: 0
+  containers:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    seccompProfile:
+      type: RuntimeDefault
+executor: CeleryExecutor
+enableServiceLinks: false
+apiSecretKeySecretName: airflow-api-secret
+fernetKeySecretName: airflow-fernet-secret
+jwtSecretName: airflow-jwt-secret
+config:
+  core:
+    dags_are_paused_at_creation: 'True'
+    load_examples: 'False'
+    auth_manager: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    parallelism: 12
+    max_active_tasks_per_dag: 4
+    max_active_runs_per_dag: 1
+    execution_api_server_url: http://airflow-api-server.airflow.svc.cluster.local:8080/execution/
+  secrets:
+    backend: airflow.providers.hashicorp.secrets.vault.VaultBackend
+    backend_kwargs: '{"url":"https://vault.example.com:8200","auth_type":"kubernetes","kubernetes_role":"airflow-prod","mount_point":"secret","kv_engine_version":2,"variables_path":null,"connections_path":"airflow/prod/connections","config_path":null,"verify":"/opt/airflow/tls/ca.crt"}'
+  metrics:
+    statsd_on: 'True'
+    statsd_host: airflow-statsd
+    statsd_port: 9125
+    statsd_prefix: airflow
+  celery:
+    worker_concurrency: 2
+    worker_prefetch_multiplier: 1
+    task_acks_late: 'True'
+  logging:
+    logging_level: INFO
+    remote_logging: 'True'
+    remote_log_conn_id: aws_default
+    remote_base_log_folder: s3://replace-with-prod-airflow-logs
+  api:
+    base_url: https://airflow.example.com
+extraEnv: "- name: PYTHONPATH\n  value: /opt/airflow/config\n- name: AIRFLOW_ALERT_EMAIL\n\
+  \  value: airflow-oncall@example.com\n- name: KEYCLOAK_INTERNAL_URL\n  value: https://sso.example.com\n"
+extraEnvFrom: "- secretRef:\n    name: airflow-runtime-secret\n"
+volumes:
+- name: vault-ca
+  secret:
+    secretName: airflow-prod-vault-ca
+volumeMounts:
+- name: vault-ca
+  mountPath: /opt/airflow/tls
+  readOnly: true
+airflowLocalSettings: null
+webserver:
+  enabled: false
+ingress:
+  web:
+    enabled: false
+networkPolicies:
+  enabled: true
+apiServer:
+  replicas: 2
+  podDisruptionBudget:
+    enabled: true
+    config:
+      maxUnavailable: 1
+  service:
+    type: ClusterIP
+  networkPolicy:
+    ingress:
+      from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-system
+      - podSelector:
+          matchLabels:
+            tier: airflow
+            release: airflow
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: '2'
+      memory: 2Gi
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        release: airflow
+        component: api-server
+scheduler:
+  replicas: 2
+  podDisruptionBudget:
+    enabled: true
+    config:
+      maxUnavailable: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: '2'
+      memory: 2Gi
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        release: airflow
+        component: scheduler
+dagProcessor:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: '2'
+      memory: 2Gi
+  podDisruptionBudget:
+    enabled: true
+    config:
+      maxUnavailable: 1
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        release: airflow
+        component: dag-processor
+workers:
+  celery:
+    replicas: 3
+    persistence:
+      enabled: false
+    podDisruptionBudget:
+      enabled: true
+      config:
+        minAvailable: 1
+    keda:
+      enabled: false
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: '2'
+        memory: 4Gi
+    topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          release: airflow
+          component: worker
+triggerer:
+  enabled: true
+  replicas: 2
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: '2'
+      memory: 2Gi
+  podDisruptionBudget:
+    enabled: true
+    config:
+      maxUnavailable: 1
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        release: airflow
+        component: triggerer
+createUserJob:
+  enabled: false
+migrateDatabaseJob:
+  enabled: true
+  useHelmHooks: true
+  applyCustomEnv: true
+dags:
+  persistence:
+    enabled: false
+  gitSync:
+    enabled: false
+    recommendedProbeSetting: true
+logs:
+  persistence:
+    enabled: false
+postgresql:
+  enabled: false
+redis:
+  enabled: false
+data:
+  metadataSecretName: airflow-metadata-secret
+  resultBackendSecretName: airflow-result-backend-secret
+  brokerUrlSecretName: airflow-broker-secret
+flower:
+  enabled: false
+databaseCleanup:
+  enabled: true
+  retentionDays: 90
+pgbouncer:
+  enabled: false

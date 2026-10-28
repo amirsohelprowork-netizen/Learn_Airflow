@@ -1,5 +1,7 @@
 # Architecture of the local Airflow platform
 
+For the **alternate production architecture, tool mapping and deployment steps**, see [Production deployment](PRODUCTION.md). For every local administration UI, see [Login URLs](../ENDPOINTS.md).
+
 This document describes the implemented, hardened local setup. Every runtime service runs on one Linux workstation. Supporting services are **outside the KinD cluster but on the same Docker host and network**. GitHub Actions provides independent code checks.
 
 [System overview](#system-overview) · [Task execution](#task-execution-and-scaling) · [Authentication](#login-and-department-permissions) · [Deployment and CI](#deployment-and-github-ci) · [Storage and boundaries](#storage-and-security-boundaries)
