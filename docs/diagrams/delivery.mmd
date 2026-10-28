@@ -1,0 +1,43 @@
+flowchart TB
+    accTitle: Local deployment lifecycle and independent GitHub CI
+    accDescr: An operator deploys locally using shared shell or Terraform lifecycle scripts. GitHub Actions validates a pushed revision but has no deployment connection to the local cluster.
+
+    source["Project source<br/>DAGs / config / constraints / Dockerfile"]
+
+    subgraph local["LOCAL DEPLOYMENT"]
+        owner["Operator runs ./ctl start<br/>OR ./ctl terraform apply"]
+        init["Generate or reuse .local/<br/>Random credentials + local CA<br/>Private files stay on this host"]
+        infra["Build source-tagged Airflow image<br/>Start PostgreSQL, Redis, LDAP,<br/>Keycloak, MinIO and Mailpit"]
+        kind["Create or resume KinD<br/>Install Kubernetes Secrets<br/>Initialize Vault and Kubernetes auth<br/>Bridge Services to actual Docker IPs"]
+        addons["Install pinned Traefik and KEDA"]
+        migrate["Load release image into KinD<br/>Run database migrations in that image"]
+        helm["Helm deploy / wait / rollback on error<br/>Seed department roles and pools"]
+        ready["Apply Prometheus and Grafana<br/>Local platform ready"]
+        owner --> init --> infra --> kind --> addons --> migrate --> helm --> ready
+    end
+
+    subgraph ci["GITHUB ACTIONS"]
+        push["Push / pull request / manual dispatch"]
+        runtime["Build runtime image<br/>Runtime regression tests<br/>Fixable HIGH / CRITICAL vulnerability gate"]
+        config["Python and Bash syntax<br/>Pinned Helm rendering checks"]
+        terraform["Terraform format and validation"]
+        result["Repository check results<br/>No local deployment step"]
+        push --> runtime --> result
+        push --> config --> result
+        push --> terraform --> result
+    end
+
+    verify["Operator verification<br/>./ctl smoke<br/>./ctl test-auth"]
+    ready -.->|Explicit verification commands| verify
+
+    source --> owner
+    source --> push
+
+    classDef source fill:#f1f5f9,stroke:#64748b,color:#172b4d
+    classDef compute fill:#eaf2ff,stroke:#6389be,color:#172b4d
+    classDef private fill:#fff4d6,stroke:#c59b38,color:#594214
+    classDef checks fill:#e5f7f0,stroke:#46977c,color:#153f32
+    class source source
+    class owner,infra,kind,addons,migrate,helm,ready,verify compute
+    class init private
+    class push,runtime,config,terraform,result checks

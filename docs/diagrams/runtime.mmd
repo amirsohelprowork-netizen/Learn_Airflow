@@ -1,0 +1,53 @@
+flowchart LR
+    accTitle: Airflow task execution, storage and worker autoscaling
+    accDescr: DAG files are baked into all Airflow images. The DAG processor serializes definitions, schedulers submit Celery workloads to Redis, workers use the internal execution API, and KEDA queries task state in PostgreSQL to scale workers.
+
+    subgraph compute["Airflow namespace"]
+        direction TB
+        files["Bundled DAGs + cluster policy<br/>/opt/airflow/dags<br/>/opt/airflow/config"]
+        parser["DAG processor x1<br/>Parse / ownership / DAG grants"]
+        scheduler["Schedulers x2<br/>Schedule runs and submit workloads"]
+        worker["Celery worker Deployment<br/>1 to 3 replicas / 2 processes each<br/>Department pools: 2 slots each"]
+        api["API servers x2<br/>UI / REST / internal Execution API"]
+        trigger["Triggerer x1<br/>Deferrable task triggers"]
+        files -->|Parse| parser
+        files -->|Load task code| worker
+        worker -->|HTTP :8080 /execution/ + task JWT| api
+    end
+
+    subgraph state["Docker data services"]
+        metadata[("PostgreSQL: airflow<br/>DAGs / runs / task state<br/>Celery result backend")]
+        warehouse[("PostgreSQL: warehouse<br/>Seeded demo_transactions<br/>Read-only warehouse role")]
+        broker[("Redis broker<br/>Password authentication / AOF")]
+        storage[("MinIO<br/>Run-specific finance reports<br/>Remote task logs")]
+        secrets["Vault<br/>aws_default / smtp_default<br/>warehouse_default"]
+    end
+
+    trigger -->|Deferred trigger state and events| metadata
+    parser -->|Serialized DAG definitions and permissions| metadata
+    scheduler <-->|Scheduling and run state| metadata
+    scheduler -->|Submit Celery workload| broker
+    worker -->|Consume workload| broker
+    worker -->|Celery result backend| metadata
+    api <-->|Metadata transactions| metadata
+    worker -->|Analytics SELECT| warehouse
+    worker -->|Upload task logs and report| storage
+    api -->|Read remote task logs| storage
+    worker -->|TLS + ServiceAccount login| secrets
+
+    subgraph scaling["AUTOSCALING"]
+        keda["KEDA PostgreSQL scaler<br/>Poll every 15 seconds<br/>Count queued + running tasks / 2"]
+        hpa["Kubernetes HPA<br/>Worker minimum 1 / maximum 3"]
+        keda -->|External metric| hpa
+    end
+    keda -->|Read task_instance state| metadata
+    hpa -.->|Desired worker replicas| worker
+
+    classDef compute fill:#eaf2ff,stroke:#6389be,color:#172b4d
+    classDef data fill:#e5f7f0,stroke:#46977c,color:#153f32
+    classDef identity fill:#fff4d6,stroke:#c59b38,color:#594214
+    classDef control fill:#f0eaff,stroke:#9673c8,color:#3e285c
+    class files,parser,scheduler,worker,api,trigger compute
+    class metadata,warehouse,broker,storage data
+    class secrets identity
+    class keda,hpa control

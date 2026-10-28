@@ -1,0 +1,31 @@
+sequenceDiagram
+    accTitle: Browser login and department authorization
+    accDescr: The browser authenticates with local Keycloak and LDAP. Airflow exchanges the authorization code over verified TLS, synchronizes group-based roles, and applies department permissions to UI and API requests.
+    autonumber
+    participant B as Local browser
+    participant T as Traefik ingress
+    participant A as Airflow API / FAB
+    participant K as Keycloak
+    participant L as OpenLDAP
+    participant P as PostgreSQL
+
+    B->>T: HTTPS https://localhost
+    T->>A: HTTP :8080
+    A-->>B: Redirect to Keycloak authorization endpoint
+    B->>K: HTTPS https://localhost:8443 + login form
+    K->>L: LDAP credential check and group lookup
+    L-->>K: User identity and department groups
+    K->>P: Identity and session persistence in keycloak database
+    K-->>B: Redirect with authorization code + state
+    B->>T: HTTPS /auth/oauth-authorized/keycloak
+    T->>A: Forward callback
+    A->>K: Verified TLS to internal Keycloak service: token exchange + userinfo
+    K-->>A: Identity and group claims
+    A->>P: Sync FAB roles at login and persist session in airflow database
+    A-->>B: Authenticated session / JWT cookie
+    B->>T: Request department DAG via UI or REST API
+    T->>A: Forward authenticated request
+    A->>P: Resolve role and DAG-specific permissions
+    A-->>B: Authorized result or access denial
+    Note over A,P: Example: aid-finance-auth can access the finance DAG. Other departments are denied by the API.
+    Note over B,L: TLS protects browser and OIDC traffic. The local LDAP connection is inside the trusted Docker network.

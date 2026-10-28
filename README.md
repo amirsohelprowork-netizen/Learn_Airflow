@@ -14,6 +14,12 @@ See [the recorded validation results](docs/VALIDATION.md).
 
 Read [the local setup guide](docs/LOCAL_SETUP.md) for prerequisites, generated credentials, endpoints, testing, Terraform, persistence, and explicit local security limits.
 
+## Architecture
+
+![Architecture of the local Airflow platform](docs/diagrams/overview.svg)
+
+[Review the architecture](docs/ARCHITECTURE.md): component placement, task execution and autoscaling, OIDC login/RBAC, local deployment versus GitHub CI, and persistence/security boundaries. [Open the diagram full-size](docs/diagrams/overview.svg).
+
 ## What is hardened
 
 - Persistent random credentials and real Fernet/API/JWT keys, excluded from source and image contexts.

@@ -1,0 +1,46 @@
+flowchart TB
+    accTitle: Local Airflow platform architecture
+    accDescr: A browser accesses Airflow through local HTTPS ingress. A single-node KinD cluster hosts Airflow, scaling and monitoring. Supporting identity, secrets, stateful services and captured email run in Docker on the same workstation.
+
+    browser["Local browser<br/>Airflow UI :443<br/>Keycloak SSO :8443"]
+
+    subgraph host["LOCAL DOCKER"]
+        direction TB
+        subgraph kind["KinD / one node"]
+            direction TB
+            ingress["Traefik ingress<br/>namespace: ingress-system"]
+            airflow["Airflow 3.3.2<br/>namespace: airflow<br/>API x2 / Scheduler x2<br/>DAG processor / Triggerer<br/>Celery workers: 1 to 3"]
+            monitor["Metrics and dashboards<br/>StatsD: airflow namespace<br/>Prometheus + Grafana:<br/>observability namespace"]
+            keda["Worker autoscaling<br/>KEDA operator + HPA"]
+        end
+        subgraph services["Outside KinD"]
+            direction TB
+            identity["Identity<br/>Keycloak + OpenLDAP<br/>OIDC / users / groups"]
+            data["Persistent data services<br/>PostgreSQL: 3 databases<br/>Redis: Celery broker<br/>MinIO: logs and reports"]
+            vault["Vault<br/>TLS + Kubernetes login<br/>Persistent Raft + audit log"]
+            mail["Mailpit<br/>Local SMTP and captured email<br/>Inbox: localhost :8025"]
+        end
+    end
+
+    browser -->|HTTPS :443| ingress
+    ingress -->|HTTP :8080| airflow
+    browser -->|HTTPS :8443| identity
+    airflow -->|OIDC backchannel / TLS| identity
+    airflow <-->|SQL / Redis / S3| data
+    airflow -->|Connection lookup / TLS| vault
+    airflow -->|StatsD metrics| monitor
+    airflow -->|Failure email| mail
+    monitor -->|Operational alerts| mail
+    keda -->|Read task state in PostgreSQL| data
+    keda -.->|HPA scales workers| airflow
+
+    classDef compute fill:#eaf2ff,stroke:#6389be,color:#172b4d
+    classDef data fill:#e5f7f0,stroke:#46977c,color:#153f32
+    classDef identity fill:#fff4d6,stroke:#c59b38,color:#594214
+    classDef observe fill:#f0eaff,stroke:#9673c8,color:#3e285c
+    classDef user fill:#f1f5f9,stroke:#64748b,color:#172b4d
+    class airflow,ingress compute
+    class data data
+    class identity,vault identity
+    class monitor,keda,mail observe
+    class browser user

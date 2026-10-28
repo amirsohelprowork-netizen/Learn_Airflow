@@ -2,6 +2,8 @@
 
 This is a production-like learning environment for trusted DAG authors on one machine. It requires no cloud account, hosted identity provider, Gmail, external secret store, or remote DAG repository. Images, Python packages, and Helm charts are downloaded during the initial build. Once cached, tasks and integrations run locally; fully air-gapped installation requires preloading those artifacts.
 
+See [the architecture review](ARCHITECTURE.md) for the runtime topology, authentication flow, and deployment diagrams.
+
 ## Prerequisites and first start
 
 Use Linux x86_64 with Docker Engine access, Python 3.12 (host Python 3.10+ also works), OpenSSL, KinD, kubectl, Helm 3, and Terraform 1.5+ if using IaC. Docker must support the pinned Kubernetes 1.34 node image. Startup installs a checksum-pinned KinD 0.30 CLI into `.local/bin` without replacing your system CLI. Allow approximately 8–10 GiB available RAM for the stack and enough disk for images. Nexus is optional and consumes additional memory. Host ports 80, 443, 8443, 8025, 8200, 9001, and 8082 must be available.
