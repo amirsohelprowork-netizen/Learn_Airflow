@@ -1,7 +1,7 @@
 {
   "realm": "airflow",
   "enabled": true,
-  "sslRequired": "none",
+  "sslRequired": "all",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
@@ -9,19 +9,49 @@
   "editUsernameAllowed": false,
   "roles": {
     "realm": [
-      { "name": "Admin", "description": "Airflow Admin Role" },
-      { "name": "aid-finance-auth", "description": "Finance Team Role" },
-      { "name": "aid-marketing-auth", "description": "Marketing Team Role" },
-      { "name": "aid-logistics-auth", "description": "Logistics Team Role" },
-      { "name": "aid-analytics-auth", "description": "Analytics Team Role" }
+      {
+        "name": "Admin",
+        "description": "Airflow Admin Role"
+      },
+      {
+        "name": "aid-finance-auth",
+        "description": "Finance Team Role"
+      },
+      {
+        "name": "aid-marketing-auth",
+        "description": "Marketing Team Role"
+      },
+      {
+        "name": "aid-logistics-auth",
+        "description": "Logistics Team Role"
+      },
+      {
+        "name": "aid-analytics-auth",
+        "description": "Analytics Team Role"
+      }
     ]
   },
   "groups": [
-    { "name": "aid-finance-auth", "path": "/aid-finance-auth" },
-    { "name": "aid-marketing-auth", "path": "/aid-marketing-auth" },
-    { "name": "aid-logistics-auth", "path": "/aid-logistics-auth" },
-    { "name": "aid-analytics-auth", "path": "/aid-analytics-auth" },
-    { "name": "airflow-admins", "path": "/airflow-admins" }
+    {
+      "name": "aid-finance-auth",
+      "path": "/aid-finance-auth"
+    },
+    {
+      "name": "aid-marketing-auth",
+      "path": "/aid-marketing-auth"
+    },
+    {
+      "name": "aid-logistics-auth",
+      "path": "/aid-logistics-auth"
+    },
+    {
+      "name": "aid-analytics-auth",
+      "path": "/aid-analytics-auth"
+    },
+    {
+      "name": "airflow-admins",
+      "path": "/airflow-admins"
+    }
   ],
   "clients": [
     {
@@ -29,24 +59,18 @@
       "name": "Airflow Webserver",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "airflow-client-secret",
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "publicClient": false,
       "protocol": "openid-connect",
       "redirectUris": [
-        "http://localhost:8080/*",
-        "https://localhost:8080/*",
-        "http://localhost:8080/oauth-authorized/keycloak",
-        "http://airflow.local/*",
-        "https://airflow.local/*",
-        "http://airflow.local/oauth-authorized/keycloak",
-        "https://airflow.local/oauth-authorized/keycloak",
-        "http://airflow.172.18.0.2.nip.io/*",
-        "https://airflow.172.18.0.2.nip.io/*",
-        "*"
+        "https://localhost/auth/oauth-authorized/keycloak",
+        "https://airflow.local/auth/oauth-authorized/keycloak"
       ],
-      "webOrigins": ["*"],
+      "webOrigins": [
+        "https://localhost",
+        "https://airflow.local"
+      ],
       "protocolMappers": [
         {
           "name": "group-membership",
@@ -90,18 +114,42 @@
               "name": "groups",
               "providerId": "group-ldap-mapper",
               "config": {
-                "groups.dn": ["ou=groups,dc=example,dc=org"],
-                "group.name.ldap.attribute": ["cn"],
-                "group.object.classes": ["groupOfNames"],
-                "preserve.group.inheritance": ["false"],
-                "ignore.missing.groups": ["false"],
-                "membership.ldap.attribute": ["member"],
-                "membership.attribute.type": ["DN"],
-                "membership.user.ldap.attribute": ["uid"],
-                "mode": ["READ_ONLY"],
-                "user.roles.retrieve.strategy": ["LOAD_GROUPS_BY_MEMBER_ATTRIBUTE"],
-                "groups.path": ["/"],
-                "drop.non.existing.groups.during.sync": ["false"]
+                "groups.dn": [
+                  "ou=groups,dc=example,dc=org"
+                ],
+                "group.name.ldap.attribute": [
+                  "cn"
+                ],
+                "group.object.classes": [
+                  "groupOfNames"
+                ],
+                "preserve.group.inheritance": [
+                  "false"
+                ],
+                "ignore.missing.groups": [
+                  "false"
+                ],
+                "membership.ldap.attribute": [
+                  "member"
+                ],
+                "membership.attribute.type": [
+                  "DN"
+                ],
+                "membership.user.ldap.attribute": [
+                  "uid"
+                ],
+                "mode": [
+                  "READ_ONLY"
+                ],
+                "user.roles.retrieve.strategy": [
+                  "LOAD_GROUPS_BY_MEMBER_ATTRIBUTE"
+                ],
+                "groups.path": [
+                  "/"
+                ],
+                "drop.non.existing.groups.during.sync": [
+                  "false"
+                ]
               }
             },
             {
@@ -109,11 +157,21 @@
               "name": "username",
               "providerId": "user-attribute-ldap-mapper",
               "config": {
-                "ldap.attribute": ["uid"],
-                "is.mandatory.in.ldap": ["true"],
-                "read.only": ["true"],
-                "always.read.value.from.ldap": ["false"],
-                "user.model.attribute": ["username"]
+                "ldap.attribute": [
+                  "uid"
+                ],
+                "is.mandatory.in.ldap": [
+                  "true"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "false"
+                ],
+                "user.model.attribute": [
+                  "username"
+                ]
               }
             },
             {
@@ -121,11 +179,21 @@
               "name": "first name",
               "providerId": "user-attribute-ldap-mapper",
               "config": {
-                "ldap.attribute": ["cn"],
-                "is.mandatory.in.ldap": ["true"],
-                "read.only": ["true"],
-                "always.read.value.from.ldap": ["true"],
-                "user.model.attribute": ["firstName"]
+                "ldap.attribute": [
+                  "cn"
+                ],
+                "is.mandatory.in.ldap": [
+                  "true"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "true"
+                ],
+                "user.model.attribute": [
+                  "firstName"
+                ]
               }
             },
             {
@@ -133,11 +201,21 @@
               "name": "last name",
               "providerId": "user-attribute-ldap-mapper",
               "config": {
-                "ldap.attribute": ["sn"],
-                "is.mandatory.in.ldap": ["true"],
-                "read.only": ["true"],
-                "always.read.value.from.ldap": ["true"],
-                "user.model.attribute": ["lastName"]
+                "ldap.attribute": [
+                  "sn"
+                ],
+                "is.mandatory.in.ldap": [
+                  "true"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "true"
+                ],
+                "user.model.attribute": [
+                  "lastName"
+                ]
               }
             },
             {
@@ -145,36 +223,83 @@
               "name": "email",
               "providerId": "user-attribute-ldap-mapper",
               "config": {
-                "ldap.attribute": ["mail"],
-                "is.mandatory.in.ldap": ["false"],
-                "read.only": ["true"],
-                "always.read.value.from.ldap": ["false"],
-                "user.model.attribute": ["email"]
+                "ldap.attribute": [
+                  "mail"
+                ],
+                "is.mandatory.in.ldap": [
+                  "false"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "false"
+                ],
+                "user.model.attribute": [
+                  "email"
+                ]
               }
             }
           ]
         },
         "config": {
-          "enabled": ["true"],
-          "priority": ["0"],
-          "editMode": ["READ_ONLY"],
-          "syncRegistrations": ["false"],
-          "vendor": ["other"],
-          "usernameLDAPAttribute": ["uid"],
-          "rdnLDAPAttribute": ["uid"],
-          "uuidLDAPAttribute": ["entryUUID"],
-          "userObjectClasses": ["inetOrgPerson, organizationalPerson"],
-          "connectionUrl": ["ldap://airflow-openldap:389"],
-          "usersDn": ["ou=users,dc=example,dc=org"],
-          "authType": ["simple"],
-          "bindDn": ["cn=admin,dc=example,dc=org"],
-          "bindCredential": ["admin"],
-          "searchScope": ["1"],
-          "validatePasswordPolicy": ["false"],
-          "trustEmail": ["true"],
-          "connectionPooling": ["true"],
-          "pagination": ["true"],
-          "batchSizeForSync": ["1000"]
+          "enabled": [
+            "true"
+          ],
+          "priority": [
+            "0"
+          ],
+          "editMode": [
+            "READ_ONLY"
+          ],
+          "syncRegistrations": [
+            "false"
+          ],
+          "vendor": [
+            "other"
+          ],
+          "usernameLDAPAttribute": [
+            "uid"
+          ],
+          "rdnLDAPAttribute": [
+            "uid"
+          ],
+          "uuidLDAPAttribute": [
+            "entryUUID"
+          ],
+          "userObjectClasses": [
+            "inetOrgPerson, organizationalPerson"
+          ],
+          "connectionUrl": [
+            "ldap://airflow-local-openldap:389"
+          ],
+          "usersDn": [
+            "ou=users,dc=example,dc=org"
+          ],
+          "authType": [
+            "simple"
+          ],
+          "bindDn": [
+            "cn=admin,dc=example,dc=org"
+          ],
+          "searchScope": [
+            "1"
+          ],
+          "validatePasswordPolicy": [
+            "false"
+          ],
+          "trustEmail": [
+            "true"
+          ],
+          "connectionPooling": [
+            "true"
+          ],
+          "pagination": [
+            "true"
+          ],
+          "batchSizeForSync": [
+            "1000"
+          ]
         }
       }
     ]
@@ -186,9 +311,14 @@
       "email": "admin@example.org",
       "firstName": "Break",
       "lastName": "Glass",
-      "credentials": [{ "type": "password", "value": "ChangeMeInSecret123!", "temporary": false }],
-      "realmRoles": ["Admin", "default-roles-airflow"],
-      "groups": ["/airflow-admins"]
+      "credentials": [],
+      "realmRoles": [
+        "Admin",
+        "default-roles-airflow"
+      ],
+      "groups": [
+        "/airflow-admins"
+      ]
     }
   ]
 }

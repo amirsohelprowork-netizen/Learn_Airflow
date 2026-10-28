@@ -25,7 +25,7 @@ cn: Alice Admin
 sn: Admin
 givenName: Alice
 mail: alice@example.com
-userPassword: Alice-lab-1
+userPassword: GENERATED_AT_LOCAL_STARTUP
 
 dn: uid=user_finance,ou=users,dc=example,dc=org
 objectClass: top
@@ -37,7 +37,7 @@ cn: Finance Owner
 sn: Owner
 givenName: Finance
 mail: user_finance@example.com
-userPassword: Finance-lab-1
+userPassword: GENERATED_AT_LOCAL_STARTUP
 
 dn: uid=user_marketing,ou=users,dc=example,dc=org
 objectClass: top
@@ -49,7 +49,7 @@ cn: Marketing Owner
 sn: Owner
 givenName: Marketing
 mail: user_marketing@example.com
-userPassword: Marketing-lab-1
+userPassword: GENERATED_AT_LOCAL_STARTUP
 
 dn: uid=user_logistics,ou=users,dc=example,dc=org
 objectClass: top
@@ -61,7 +61,7 @@ cn: Logistics Owner
 sn: Owner
 givenName: Logistics
 mail: user_logistics@example.com
-userPassword: Logistics-lab-1
+userPassword: GENERATED_AT_LOCAL_STARTUP
 
 dn: uid=user_analytics,ou=users,dc=example,dc=org
 objectClass: top
@@ -73,7 +73,7 @@ cn: Analytics Owner
 sn: Owner
 givenName: Analytics
 mail: user_analytics@example.com
-userPassword: Analytics-lab-1
+userPassword: GENERATED_AT_LOCAL_STARTUP
 
 # 3. Active Directory Security Groups (Mapped automatically into Airflow RBAC)
 dn: cn=airflow-admins,ou=groups,dc=example,dc=org

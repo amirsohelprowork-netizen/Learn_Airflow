@@ -36,22 +36,15 @@ FINANCE_LEDGER_ASSET = Asset("s3://airflow-logs/datasets/finance_ledger") if Ass
 
 
 def extract_warehouse_data(**context) -> int:
-    """Extract relational data using PostgresHook from enterprise metadata database."""
-    log.info("Querying PostgreSQL metadata warehouse via PostgresHook...")
-    row_count = 0
-    try:
-        from airflow.providers.postgres.hooks.postgres import PostgresHook
+    """Read seeded demo data using a dedicated read-only warehouse account."""
+    log.info("Querying the local demo warehouse via PostgresHook...")
+    from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-        pg_hook = PostgresHook(postgres_conn_id="postgres_default")
-        records = pg_hook.get_records("SELECT count(*) FROM dag_run;")
-        if records and records[0]:
-            row_count = int(records[0][0])
-            log.info("Successfully queried Postgres. Active historical dag_runs: %d", row_count)
-    except Exception as exc:
-        log.warning("PostgresHook notice (database offline or connection pending): %s", exc)
-        row_count = 42
-
-    return row_count
+    pg_hook = PostgresHook(postgres_conn_id="warehouse_default")
+    records = pg_hook.get_records("SELECT count(*) FROM demo_transactions;")
+    if not records or records[0][0] is None:
+        raise ValueError("Warehouse returned no transaction count")
+    return int(records[0][0])
 
 
 def transform_metrics(**context) -> dict[str, int]:

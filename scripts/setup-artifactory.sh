@@ -8,12 +8,13 @@
 # - Helm:   http://localhost:8085/repository/helm-proxy/
 # ==============================================================================
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ARTIFACTORY_CONTAINER="airflow-artifactory"
+ARTIFACTORY_CONTAINER="airflow-local-artifactory"
 ARTIFACTORY_UI_PORT="8085"
 ARTIFACTORY_DOCKER_PORT="5000"
-ARTIFACTORY_PASS="admin123"
+ARTIFACTORY_PASS="${NEXUS_ADMIN_PASSWORD}"
 NAMESPACE="airflow"
 
 # Colors
@@ -33,11 +34,11 @@ if ! docker ps --filter "name=^/${ARTIFACTORY_CONTAINER}$" --format '{{.Names}}'
         docker run -d \
             --name "${ARTIFACTORY_CONTAINER}" \
             --restart unless-stopped \
-            -p "${ARTIFACTORY_UI_PORT}:8081" \
-            -p "${ARTIFACTORY_DOCKER_PORT}:5000" \
+            -p "127.0.0.1:${ARTIFACTORY_UI_PORT}:8081" \
+            -p "127.0.0.1:${ARTIFACTORY_DOCKER_PORT}:5000" \
             -e INSTALL4J_ADD_VM_PARAMS="-Xms1024m -Xmx2048m -XX:MaxDirectMemorySize=1024m" \
-            -v airflow-artifactory-data:/nexus-data \
-            sonatype/nexus3:latest
+            -v airflow-local-artifactory-data:/nexus-data \
+            sonatype/nexus3@sha256:5a90cc609f47d1461282a314fbb78906a5d84c8961d515902e46e357c7278471
     fi
 else
     echo "External Artifactory container '${ARTIFACTORY_CONTAINER}' is already running."
@@ -45,7 +46,7 @@ fi
 
 # Connect Artifactory container to KinD network bridge if present
 if docker network inspect kind >/dev/null 2>&1; then
-    docker network connect kind "${ARTIFACTORY_CONTAINER}" 2>/dev/null || true
+    connect_kind "${ARTIFACTORY_CONTAINER}"
 fi
 
 echo "Waiting for Artifactory to be ready on http://localhost:${ARTIFACTORY_UI_PORT}..."
@@ -75,13 +76,13 @@ echo -e "${CYAN}=== 2. Configuring Admin Credentials & Anonymous Access ===${NC}
 CURRENT_PASS="${ARTIFACTORY_PASS}"
 if docker exec "${ARTIFACTORY_CONTAINER}" test -f /nexus-data/admin.password 2>/dev/null; then
     INITIAL_PASS=$(docker exec "${ARTIFACTORY_CONTAINER}" cat /nexus-data/admin.password)
-    echo "Updating initial admin password to standard lab password..."
+    echo "Updating initial admin password to generated local password..."
     curl -s -f -X PUT \
         -u "admin:${INITIAL_PASS}" \
         -H "Content-Type: text/plain" \
         -d "${ARTIFACTORY_PASS}" \
-        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/security/users/admin/change-password" || true
-    echo -e "${GREEN}Admin password updated to '${ARTIFACTORY_PASS}'.${NC}"
+        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/security/users/admin/change-password"
+    echo "Admin password configured; use ./ctl credentials to view it."
 fi
 
 # Enable Anonymous access so pip, helm, and docker can pull without credentials
@@ -90,7 +91,7 @@ curl -s -f -X PUT \
     -u "admin:${ARTIFACTORY_PASS}" \
     -H "Content-Type: application/json" \
     -d '{"enabled": true, "userId": "anonymous", "realmName": "NexusAuthorizingRealm"}' \
-    "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/security/anonymous" || true
+    "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/security/anonymous"
 
 # Activate Docker Token Realm for token-based docker pull
 echo "Activating DockerToken realm..."
@@ -98,12 +99,12 @@ curl -s -f -X PUT \
     -u "admin:${ARTIFACTORY_PASS}" \
     -H "Content-Type: application/json" \
     -d '["NexusAuthenticatingRealm", "NexusAuthorizingRealm", "DockerToken"]' \
-    "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/security/realms/active" || true
+    "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/security/realms/active"
 
 # Accept Community Edition EULA if required
 echo "Accepting Community Edition EULA..."
 python3 -c '
-import urllib.request, json, base64
+import urllib.request, urllib.error, json, base64
 
 auth = base64.b64encode(b"admin:'"${ARTIFACTORY_PASS}"'").decode("ascii")
 try:
@@ -118,14 +119,15 @@ try:
             method="POST"
         )
         urllib.request.urlopen(post_req)
-except Exception:
-    pass
+except urllib.error.HTTPError as exc:
+    if exc.code != 404:
+        raise
 '
 
 echo -e "${CYAN}=== 3. Creating Repositories in Artifactory ===${NC}"
 
 # Check existing repositories
-EXISTING_REPOS=$(curl -s -u "admin:${ARTIFACTORY_PASS}" "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories" || echo "[]")
+EXISTING_REPOS=$(curl --fail -s -u "admin:${ARTIFACTORY_PASS}" "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories")
 
 # 1. PyPI Proxy Repository
 if echo "${EXISTING_REPOS}" | grep -q '"name"[[:space:]]*:[[:space:]]*"pypi-proxy"'; then
@@ -145,7 +147,7 @@ else
             "httpClient": { "blocked": false, "autoBlock": true, "connection": { "retries": 2, "timeout": 60 } },
             "pypi": { "removeQuotas": false }
         }' \
-        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories/pypi/proxy" || true
+        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories/pypi/proxy"
     echo -e "${GREEN}PyPI proxy created at http://localhost:${ARTIFACTORY_UI_PORT}/repository/pypi-proxy/simple/${NC}"
 fi
 
@@ -168,7 +170,7 @@ else
             "docker": { "v1Enabled": true, "forceBasicAuth": false, "httpPort": 5000 },
             "dockerProxy": { "indexType": "HUB" }
         }' \
-        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories/docker/proxy" || true
+        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories/docker/proxy"
     echo -e "${GREEN}Docker Hub proxy created on port ${ARTIFACTORY_DOCKER_PORT}.${NC}"
 fi
 
@@ -189,14 +191,14 @@ else
             "negativeCache": { "enabled": true, "timeToLive": 1440 },
             "httpClient": { "blocked": false, "autoBlock": true, "connection": { "retries": 2, "timeout": 60 } }
         }' \
-        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories/helm/proxy" || true
+        "http://localhost:${ARTIFACTORY_UI_PORT}/service/rest/v1/repositories/helm/proxy"
     echo -e "${GREEN}Helm proxy created at http://localhost:${ARTIFACTORY_UI_PORT}/repository/helm-proxy/${NC}"
 fi
 
 echo -e "${CYAN}=== 4. Mapping External Artifactory into Kubernetes ===${NC}"
-if kubectl cluster-info >/dev/null 2>&1; then
-    kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -f "${ROOT_DIR}/k8s/artifactory/service.yaml"
+if kubectl --context kind-airflow-local cluster-info >/dev/null 2>&1; then
+    kubectl --context kind-airflow-local create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl --context kind-airflow-local apply -f -
+    echo "Nexus is accessed through loopback by host build tools only."
     echo -e "${GREEN}Artifactory service & endpoints mapped in namespace '${NAMESPACE}'.${NC}"
 else
     echo -e "${YELLOW}Kubernetes cluster not running yet; service mapping will occur during cluster startup.${NC}"
@@ -204,7 +206,7 @@ fi
 
 echo -e "${GREEN}======================================================================${NC}"
 echo -e "${GREEN}External Artifactory (Nexus 3 OSS) is ready!${NC}"
-echo -e "  Web Console:   ${CYAN}http://localhost:${ARTIFACTORY_UI_PORT}${NC} (User: admin | Pass: ${ARTIFACTORY_PASS})"
+echo -e "  Web Console:   ${CYAN}http://localhost:${ARTIFACTORY_UI_PORT}${NC} (User: admin | use ./ctl credentials)"
 echo -e "  PyPI Simple:   ${CYAN}http://localhost:${ARTIFACTORY_UI_PORT}/repository/pypi-proxy/simple/${NC}"
 echo -e "  Docker Mirror: ${CYAN}http://localhost:${ARTIFACTORY_DOCKER_PORT}${NC}"
 echo -e "  Helm Repo:     ${CYAN}http://localhost:${ARTIFACTORY_UI_PORT}/repository/helm-proxy/${NC}"

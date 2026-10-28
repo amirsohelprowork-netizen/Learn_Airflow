@@ -1,3 +1,4 @@
+# Endpoints are generated from actual Docker IPs by local_cluster.py bridge.
 apiVersion: v1
 kind: Service
 metadata:
@@ -5,18 +6,6 @@ metadata:
   namespace: airflow
 spec:
   ports:
-    - name: tcp-redis
-      port: 6379
-      targetPort: 6379
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: redis
-  namespace: airflow
-subsets:
-  - addresses:
-      - ip: 172.18.0.1
-    ports:
-      - name: tcp-redis
-        port: 6379
+  - name: tcp-redis
+    port: 6379
+    targetPort: 6379

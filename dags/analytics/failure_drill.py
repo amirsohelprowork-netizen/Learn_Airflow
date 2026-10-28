@@ -7,7 +7,7 @@ Used by './ctl test-alert' to test real Airflow task failure alerting via SmtpNo
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 try:
     from airflow.providers.standard.operators.empty import EmptyOperator
@@ -42,6 +42,7 @@ with DAG(
     default_args={
         "owner": "analytics",
         "retries": 1,
+        "retry_delay": timedelta(seconds=5),
     },
     doc_md="Simulated task failure drill to verify SmtpNotifier email dispatch via Celery worker.",
 ) as dag:

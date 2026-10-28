@@ -1,26 +1,15 @@
-###############################################################################
-# Apache Airflow Helm Chart Values for Local Kubernetes (KinD / Minikube)
-# Chart: apache-airflow/airflow
-# Failure Notification: Gmail / SMTP (alerts@example.com)
-###############################################################################
-
-# --- Global & Image Configuration ---
+# Local production-like profile. Pin chart 1.22.0 in every install command.
+# The content-addressed image tag is supplied by scripts/deploy-airflow.sh.
 airflowVersion: "3.3.2"
-defaultAirflowRepository: "learn-airflow"
-defaultAirflowTag: "3.3.2-python3.12"
-
+defaultAirflowRepository: learn-airflow
+defaultAirflowTag: local-build-required
 images:
   airflow:
-    # Uses the local Docker image built on your machine:
-    # Loaded into KinD with: kind load docker-image learn-airflow:3.3.2-python3.12 --name airflow-local
-    repository: "learn-airflow"
-    tag: "3.3.2-python3.12"
-    pullPolicy: "IfNotPresent"
-
-# --- Security Context for Standard Kubernetes ---
+    repository: learn-airflow
+    tag: local-build-required
+    pullPolicy: IfNotPresent
 uid: 50000
 gid: 0
-
 securityContexts:
   pod:
     runAsNonRoot: true
@@ -29,157 +18,91 @@ securityContexts:
   containers:
     allowPrivilegeEscalation: false
     capabilities:
-      drop:
-        - ALL
-    readOnlyRootFilesystem: false
+      drop: [ALL]
     seccompProfile:
       type: RuntimeDefault
-
-# --- Executor ---
-executor: "CeleryExecutor"
-
-# --- Secret Keys (managed via external HashiCorp Vault, referenced via Secret) ---
-apiSecretKeySecretName: "airflow-api-secret"
-webserverSecretKeySecretName: "airflow-api-secret"
-
-# --- Airflow Configuration (airflow.cfg overrides) ---
+executor: CeleryExecutor
+enableServiceLinks: false
+apiSecretKeySecretName: airflow-api-secret
+fernetKeySecretName: airflow-fernet-secret
+jwtSecretName: airflow-jwt-secret
 config:
   core:
     dags_are_paused_at_creation: "True"
     load_examples: "False"
-    auth_manager: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
-    colored_console_log: "True"
-
+    auth_manager: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    parallelism: 12
+    max_active_tasks_per_dag: 4
+    max_active_runs_per_dag: 1
+    execution_api_server_url: http://airflow-api-server.airflow.svc.cluster.local:8080/execution/
   secrets:
-    backend: "airflow.providers.hashicorp.secrets.vault.VaultBackend"
-    backend_kwargs: '{"url": "http://vault.airflow.svc.cluster.local:8200", "auth_type": "kubernetes", "kubernetes_role": "airflow", "mount_point": "secret", "kv_engine_version": 2, "variables_path": "airflow/variables", "connections_path": "airflow/connections", "config_path": "airflow/config"}'
-
-
+    backend: airflow.providers.hashicorp.secrets.vault.VaultBackend
+    backend_kwargs: '{"url":"https://vault.airflow.svc.cluster.local:8200","auth_type":"kubernetes","kubernetes_role":"airflow","mount_point":"secret","kv_engine_version":2,"variables_path":null,"connections_path":"airflow/connections","config_path":null,"verify":"/opt/airflow/tls/ca.crt"}'
   metrics:
     statsd_on: "True"
-    statsd_host: "airflow-statsd"
+    statsd_host: airflow-statsd
     statsd_port: 9125
-    statsd_prefix: "airflow"
-
+    statsd_prefix: airflow
   celery:
-    flower_basic_auth: "admin:admin"
-
-  api:
-    auth_backends: "airflow.api.auth.backend.session"
-
-  # Gmail failure notification settings
-  email:
-    email_backend: "airflow.utils.email.send_email_smtp"
-    from_email: "Airflow Alert <alerts@example.com>"
-    subject_template: "/opt/airflow/config/email/subject.txt"
-    html_content_template: "/opt/airflow/config/email/content.html"
-    default_email_on_failure: "True"
-    default_email_on_retry: "True"
-
-  smtp:
-    smtp_host: "smtp.gmail.com"
-    smtp_port: 587
-    smtp_starttls: "True"
-    smtp_ssl: "False"
-    smtp_user: "alerts@example.com"
-    smtp_mail_from: "alerts@example.com"
-    smtp_password_secret_name: "airflow-smtp-secret"
-    smtp_password_secret_key: "password"
-
+    worker_concurrency: 2
+    worker_prefetch_multiplier: 1
+    task_acks_late: "True"
   logging:
-    logging_level: "INFO"
+    logging_level: INFO
     remote_logging: "True"
-    remote_log_conn_id: "aws_default"
-    remote_base_log_folder: "s3://airflow-logs"
-    encrypt_s3_logs: "False"
-
-# --- Extra Environment Variables & Secret Injections ---
-# In Airflow 3.x, SmtpNotifier looks up the 'smtp_default' connection.
-# We inject AIRFLOW_CONN_SMTP_DEFAULT using the Gmail credentials.
-# Note: '@' in the email username must be URL-encoded as '%40'.
+    remote_log_conn_id: aws_default
+    remote_base_log_folder: s3://airflow-logs
+  api:
+    base_url: https://localhost
 extraEnv: |
   - name: PYTHONPATH
-    value: "/opt/airflow/config"
-  - name: GMAIL_APP_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: airflow-smtp-secret
-        key: password
-        optional: true
+    value: /opt/airflow/config
   - name: AIRFLOW_ALERT_EMAIL
-    value: "alerts@example.com"
+    value: alerts@local.test
   - name: KEYCLOAK_INTERNAL_URL
-    value: "http://keycloak.airflow.svc.cluster.local:8080"
-  - name: KEYCLOAK_EXTERNAL_URL
-    value: "http://localhost:8081"
-  - name: PIP_INDEX_URL
-    value: "http://artifactory.airflow.svc.cluster.local:8085/repository/pypi-proxy/simple/"
-  - name: PIP_TRUSTED_HOST
-    value: "artifactory.airflow.svc.cluster.local"
-
-
-
-# --- Central Cluster Policy for Dynamic Keyword/Owner-Based RBAC ---
-# Managed cleanly in config/airflow_local_settings.py and loaded automatically via PYTHONPATH.
+    value: https://keycloak.airflow.svc.cluster.local:8443
+  - name: REQUESTS_CA_BUNDLE
+    value: /opt/airflow/tls/ca.crt
+extraEnvFrom: |
+  - secretRef:
+      name: airflow-runtime-secret
+volumes:
+  - name: local-ca
+    secret:
+      secretName: airflow-ca
+volumeMounts:
+  - name: local-ca
+    mountPath: /opt/airflow/tls
+    readOnly: true
 airflowLocalSettings: ~
-
-
-# --- Webserver & Local Access ---
-# In Airflow 3.x, apiServer serves both the React UI and REST API.
-# webserver is disabled to prevent port collisions on NodePort 30080.
 webserver:
   enabled: false
-
-
-
-# Local KinD setup uses direct NodePort / port-forward, so Ingress is disabled
 ingress:
   web:
     enabled: false
-
-# --- Network Policies ---
-# Restricts ingress traffic between pods in the namespace
 networkPolicies:
   enabled: true
-
-# --- API Server (Airflow 3.x UI & API) ---
 apiServer:
-  enabled: true
   replicas: 2
   podDisruptionBudget:
     enabled: true
     config:
       maxUnavailable: 1
-  resources:
-    limits:
-      cpu: "500m"
-      memory: "1Gi"
-    requests:
-      cpu: "100m"
-      memory: "256Mi"
+  service:
+    type: ClusterIP
   networkPolicy:
     ingress:
       from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-  service:
-    type: NodePort
-    ports:
-      - name: api-server
-        port: 8080
-        nodePort: 30080
-  extraVolumes:
-    - name: webserver-config
-      configMap:
-        name: airflow-webserver-config
-        defaultMode: 0644
-  extraVolumeMounts:
-    - name: webserver-config
-      mountPath: /opt/airflow/webserver_config.py
-      subPath: webserver_config.py
-      readOnly: true
-
-# --- Scheduler ---
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-system
+        - podSelector:
+            matchLabels:
+              tier: airflow
+              release: airflow
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 1000m, memory: 1Gi}
 scheduler:
   replicas: 2
   podDisruptionBudget:
@@ -187,119 +110,65 @@ scheduler:
     config:
       maxUnavailable: 1
   resources:
-    limits:
-      cpu: "1000m"
-      memory: "2Gi"
-    requests:
-      cpu: "250m"
-      memory: "512Mi"
-
-# --- DAG Processor ---
+    requests: {cpu: 150m, memory: 384Mi}
+    limits: {cpu: 1000m, memory: 1Gi}
 dagProcessor:
   enabled: true
   replicas: 1
   resources:
-    limits:
-      cpu: "1000m"
-      memory: "1.5Gi"
-    requests:
-      cpu: "150m"
-      memory: "256Mi"
-
-# --- Workers (Celery) ---
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 1000m, memory: 1Gi}
 workers:
-  replicas: 1
-  persistence:
-    enabled: false
   celery:
+    replicas: 1
+    persistence:
+      enabled: false
     podDisruptionBudget:
       enabled: true
       config:
-        maxUnavailable: 1
-  resources:
-    limits:
-      cpu: "1000m"
-      memory: "2Gi"
-    requests:
-      cpu: "250m"
-      memory: "512Mi"
-
-# --- Triggerer ---
+        minAvailable: 1
+    keda:
+      enabled: true
+      minReplicaCount: 1
+      maxReplicaCount: 3
+      pollingInterval: 15
+      cooldownPeriod: 120
+    resources:
+      requests: {cpu: 150m, memory: 384Mi}
+      limits: {cpu: 1000m, memory: 1536Mi}
 triggerer:
   enabled: true
   replicas: 1
   persistence:
     enabled: false
   resources:
-    limits:
-      cpu: "500m"
-      memory: "512Mi"
-    requests:
-      cpu: "100m"
-      memory: "256Mi"
-
-# --- Initial Break-Glass Admin User Creation ---
-# Password is not committed in Git. Injected dynamically at runtime via Kubernetes Secret.
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 768Mi}
+# OIDC administrator is imported into Keycloak; avoid a second password in Helm history.
 createUserJob:
-  enabled: true
-  defaultUser:
-    role: Admin
-    username: breakglass
-    email: alerts@example.com
-    firstName: Break
-    lastName: Glass
-
-# --- DAGs Deployment ---
-# Synced dynamically from Git repository via git-sync sidecar container.
+  enabled: false
+migrateDatabaseJob:
+  enabled: false
 dags:
   persistence:
     enabled: false
   gitSync:
-    enabled: true
-    repo: "https://github.com/amirsohelprowork-netizen/Learn_Airflow.git"
-    branch: "main"
-    rev: "HEAD"
-    depth: 1
-    subPath: "dags"
-    period: "30s"
-    wait: 30
+    enabled: false
     recommendedProbeSetting: true
-    sshKeySecret: "airflow-ssh-secret"
-    knownHosts: |
-      github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
-      github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
-      github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
-
-# --- Logs Persistence ---
-# EmptyDir or standard local PVC in KinD
 logs:
   persistence:
     enabled: false
-
-# --- External Metadata Database (PostgreSQL) & Celery Broker (Redis) ---
-# Stateful pods disabled in-cluster; Airflow connects to external managed services via Kubernetes Secrets.
 postgresql:
   enabled: false
-
 redis:
   enabled: false
-
 data:
-  metadataSecretName: "airflow-metadata-secret"
-  brokerUrlSecretName: "airflow-broker-secret"
-
-# --- Flower (Celery Monitoring) ---
+  metadataSecretName: airflow-metadata-secret
+  resultBackendSecretName: airflow-result-backend-secret
+  brokerUrlSecretName: airflow-broker-secret
 flower:
+  enabled: false
+# Bound maintenance work; preserves recent history.
+databaseCleanup:
   enabled: true
-  networkPolicy:
-    ingress:
-      from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-  resources:
-    limits:
-      cpu: "250m"
-      memory: "256Mi"
-    requests:
-      cpu: "50m"
-      memory: "128Mi"
+  retentionDays: 30

@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# Tear down the local KinD Kubernetes cluster
+# Stop compute and services; retain named volumes, certificates and credentials.
 set -euo pipefail
-
-CLUSTER_NAME="airflow-local"
-
-echo "=== Deleting KinD cluster '${CLUSTER_NAME}' ==="
-if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
-    kind delete cluster --name "${CLUSTER_NAME}"
-    echo "KinD cluster '${CLUSTER_NAME}' deleted successfully."
-else
-    echo "KinD cluster '${CLUSTER_NAME}' is not currently running."
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if docker container inspect airflow-local-control-plane >/dev/null 2>&1; then
+    docker stop airflow-local-control-plane
 fi
-
-echo "=== Stopping external infrastructure containers ==="
-docker stop airflow-keycloak airflow-openldap airflow-phpldapadmin airflow-postgres airflow-redis airflow-vault airflow-minio airflow-artifactory 2>/dev/null || true
-echo "All external containers stopped. Volumes and metadata are preserved."
+mapfile -t containers < <(docker ps -q --filter 'name=^/airflow-local-')
+if ((${#containers[@]})); then docker stop "${containers[@]}"; fi
+echo "Local compute stopped. Data volumes and .local/ are preserved."

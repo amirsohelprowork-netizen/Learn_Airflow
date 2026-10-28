@@ -49,7 +49,7 @@ data:
           - uid: email-admin-receiver
             type: email
             settings:
-              addresses: alerts@example.com
+              addresses: alerts@local.test
               singleEmail: true
     policies:
       - orgId: 1
@@ -79,7 +79,8 @@ data:
                   expr: sum(rate(airflow_scheduler_heartbeat[1m])) or vector(0)
                   intervalMs: 1000
                   maxDataPoints: 43200
-                  range: true
+                  range: false
+                  instant: true
                   refId: A
               - refId: B
                 queryType: ''
@@ -132,7 +133,8 @@ data:
                   expr: sum(airflow_dag_processing_import_errors) or vector(0)
                   intervalMs: 1000
                   maxDataPoints: 43200
-                  range: true
+                  range: false
+                  instant: true
                   refId: A
               - refId: B
                 queryType: ''
@@ -305,6 +307,8 @@ metadata:
     app: grafana
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: grafana
@@ -313,6 +317,8 @@ spec:
       labels:
         app: grafana
     spec:
+      securityContext:
+        fsGroup: 472
       containers:
         - name: grafana
           image: grafana/grafana:11.2.0
@@ -320,32 +326,34 @@ spec:
             - name: GF_SECURITY_ADMIN_USER
               value: "admin"
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: "admin"
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-secret
+                  key: password
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
             - name: GF_AUTH_ANONYMOUS_ENABLED
-              value: "true"
+              value: "false"
             - name: GF_AUTH_ANONYMOUS_ORG_ROLE
               value: "Viewer"
             - name: GF_SMTP_ENABLED
               value: "true"
             - name: GF_SMTP_HOST
-              value: "smtp.gmail.com:587"
-            - name: GF_SMTP_USER
-              value: "alerts@example.com"
-            - name: GF_SMTP_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: grafana-smtp-secret
-                  key: password
+              value: "mailpit.airflow.svc.cluster.local:1025"
             - name: GF_SMTP_FROM_ADDRESS
-              value: "alerts@example.com"
+              value: "alerts@local.test"
             - name: GF_SMTP_FROM_NAME
               value: "Airflow Platform Alert"
             - name: GF_SMTP_STARTTLS_POLICY
-              value: "OpportunisticStartTLS"
+              value: "NoStartTLS"
             - name: GF_UNIFIED_ALERTING_ENABLED
               value: "true"
+          readinessProbe:
+            httpGet: {path: /api/health, port: 3000}
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet: {path: /api/health, port: 3000}
+            initialDelaySeconds: 30
           ports:
             - name: http
               containerPort: 3000
@@ -357,6 +365,8 @@ spec:
               cpu: "100m"
               memory: "128Mi"
           volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
             - name: dashboard-provider
@@ -366,6 +376,9 @@ spec:
             - name: alerting
               mountPath: /etc/grafana/provisioning/alerting
       volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
         - name: datasources
           configMap:
             name: grafana-datasources
@@ -394,3 +407,15 @@ spec:
       targetPort: 3000
   selector:
     app: grafana
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: observability
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

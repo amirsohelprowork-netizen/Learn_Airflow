@@ -25,6 +25,11 @@ from typing import List, Set, Tuple
 # Default directory and file patterns to ignore
 DEFAULT_IGNORED_DIRS: Set[str] = {
     ".git",
+    ".local",
+    ".terraform",
+    ".aws",
+    ".codex",
+    ".agents",
     "__pycache__",
     ".pytest_cache",
     ".mypy_cache",
@@ -36,6 +41,11 @@ DEFAULT_IGNORED_DIRS: Set[str] = {
 }
 
 DEFAULT_IGNORED_FILES: Set[str] = {
+    ".env",
+    "*.tfstate",
+    "*.tfstate.*",
+    "*.tfvars",
+    "local.auto.tfvars.json",
     ".DS_Store",
     "Thumbs.db",
 }
@@ -91,7 +101,7 @@ def should_ignore(
             return True
 
     # Check exact file name matches
-    if path.is_file() and path.name in ignored_files:
+    if path.is_file() and any(fnmatch.fnmatch(path.name, pattern) for pattern in ignored_files):
         return True
 
     # Check custom glob patterns against relative path or filename

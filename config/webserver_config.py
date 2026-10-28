@@ -7,8 +7,11 @@ AUTH_USER_REGISTRATION = True
 AUTH_USER_REGISTRATION_ROLE = "Public"
 AUTH_ROLES_SYNC_AT_LOGIN = True
 PERMANENT_SESSION_LIFETIME = 1800
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
 
-KEYCLOAK_INTERNAL_URL = os.environ.get("KEYCLOAK_INTERNAL_URL", "http://keycloak.airflow.svc.cluster.local:8080")
+KEYCLOAK_INTERNAL_URL = os.environ.get("KEYCLOAK_INTERNAL_URL", "https://keycloak.airflow.svc.cluster.local:8443")
 
 OAUTH_PROVIDERS = [
     {
@@ -17,7 +20,7 @@ OAUTH_PROVIDERS = [
         "token_key": "access_token",
         "remote_app": {
             "client_id": "airflow",
-            "client_secret": os.environ.get("KEYCLOAK_CLIENT_SECRET", "airflow-client-secret"),
+            "client_secret": os.environ["KEYCLOAK_CLIENT_SECRET"],
             "server_metadata_url": f"{KEYCLOAK_INTERNAL_URL}/realms/airflow/.well-known/openid-configuration",
             "api_base_url": f"{KEYCLOAK_INTERNAL_URL}/realms/airflow/protocol/",
             "client_kwargs": {

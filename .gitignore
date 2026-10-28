@@ -13,5 +13,21 @@ __pycache__/
 crash.log
 *.tfvars
 !*.tfvars.example
-.terraform.lock.hcl
 
+
+# Generated local credentials, certificates, release values and rendered manifests
+.local/
+terraform/local.auto.tfvars.json
+
+# Public-repository safeguards for common local credential files and exports
+.env.*
+!.env.example
+!.env.*.example
+.aws/
+.codex/auth.json
+*.key
+*.pem
+*.p12
+*.pfx
+repo_bundle*.txt
+repo_dump*.txt

@@ -49,9 +49,11 @@ try:
         html_content=content_template,
     )
 except ImportError:
-    # Graceful fallback in environments where smtp provider is not yet installed
+    if os.getenv("AIRFLOW_REQUIRE_RUNTIME") == "1":
+        raise
+
     def DEFAULT_FAILURE_NOTIFIER(context):  # type: ignore
-        log.warning("send_smtp_notification not available; using fallback notifier.")
+        raise RuntimeError("SMTP provider is required for failure notifications")
 
 
 def dag_policy(dag: DAG) -> None:
@@ -69,11 +71,9 @@ def dag_policy(dag: DAG) -> None:
         )
 
     # 1. Least-Privilege RBAC: Team gets read/edit; only Admin can delete DAGs
-    if getattr(dag, "access_control", None) is None:
-        dag.access_control = {}
-
     target_role = f"aid-{owner}-auth"
-    dag.access_control[target_role] = {"can_read", "can_edit"}
+    # Replace author-supplied grants, including stale grants from another team.
+    dag.access_control = {target_role: {"DAGs": {"can_read", "can_edit"}}}
 
     # 2. Enforce tags for UI discoverability
     if getattr(dag, "tags", None) is None:

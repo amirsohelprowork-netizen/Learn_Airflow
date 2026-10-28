@@ -7,3 +7,10 @@ logs
 agent-command.md
 README.md
 .cursor
+.local
+terraform
+k8s
+evidence
+.aws
+.codex
+.agents

@@ -121,7 +121,7 @@ class TestClusterPolicyEngine(unittest.TestCase):
         airflow_local_settings.dag_policy(dag)
 
         self.assertIn("aid-finance-auth", dag.access_control)
-        perms = dag.access_control["aid-finance-auth"]
+        perms = dag.access_control["aid-finance-auth"]["DAGs"]
         self.assertEqual(perms, {"can_read", "can_edit"})
         self.assertNotIn("can_delete", perms)
         self.assertIn("finance", dag.tags)
@@ -209,10 +209,10 @@ class TestDagBagIntegration(unittest.TestCase):
                 airflow_local_settings.dag_policy(dag)
                 self.assertIn(f"aid-{owner}-auth", dag.access_control)
                 self.assertEqual(
-                    dag.access_control[f"aid-{owner}-auth"],
+                    dag.access_control[f"aid-{owner}-auth"]["DAGs"],
                     {"can_read", "can_edit"},
                 )
-                self.assertNotIn("can_delete", dag.access_control[f"aid-{owner}-auth"])
+                self.assertNotIn("can_delete", dag.access_control[f"aid-{owner}-auth"]["DAGs"])
 
                 # Verify task_policy dynamically isolates pools, retries, and timeouts
                 for task in dag.tasks:
@@ -238,7 +238,9 @@ class TestDagBagIntegration(unittest.TestCase):
 
         except ImportError as exc:
             # When running on host without Airflow runtime installed, DagBag test is delegated to container
-            print(f"[NOTICE] Airflow runtime not installed in current Python env ({exc}). DagBag integration runs via './ctl test' in container.")
+            if os.getenv("AIRFLOW_REQUIRE_RUNTIME") == "1":
+                raise
+            self.skipTest(f"Airflow runtime unavailable: {exc}; use ./ctl test for runtime validation")
 
 
 if __name__ == "__main__":

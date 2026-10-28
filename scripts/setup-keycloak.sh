@@ -1,116 +1,20 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# Setup & Bridge External Keycloak Identity Provider for Airflow
-# Runs Keycloak as an external Docker container outside KinD cluster,
-# matching enterprise architecture where IdP/IAM is a central external service.
-# ==============================================================================
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+ensure_container airflow-local-keycloak \
+    -p 127.0.0.1:8443:8443 \
+    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
+    -e KC_DB=postgres -e KC_DB_URL=jdbc:postgresql://airflow-local-postgres:5432/keycloak \
+    -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD="${KEYCLOAK_DB_PASSWORD}" \
+    -e KC_HOSTNAME=https://localhost:8443 -e KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true \
+    -e KC_HTTP_ENABLED=false -e KC_HEALTH_ENABLED=true \
+    -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/tls/server.crt \
+    -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/tls/server.key \
+    -v "${ROOT_DIR}/.local/tls/server.crt:/opt/keycloak/tls/server.crt:ro" \
+    -v "${ROOT_DIR}/.local/tls/server.key:/opt/keycloak/tls/server.key:ro" \
+    -v "${ROOT_DIR}/.local/realm-airflow.json:/opt/keycloak/data/import/airflow-realm.json:ro" \
+    quay.io/keycloak/keycloak:26.0.0@sha256:db0d0f2c2eee8618a37a50e04affb69823e56687b4d1b676a847a4b85de62178 start --import-realm
+wait_for Keycloak 90 curl --fail --silent --cacert "${ROOT_DIR}/.local/tls/ca.crt" \
+    https://localhost:8443/realms/airflow/.well-known/openid-configuration
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KEYCLOAK_CONTAINER="airflow-keycloak"
-KEYCLOAK_PORT="8081"
-NAMESPACE="airflow"
-
-# Colors
-CYAN='\033[0;36m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-echo -e "${CYAN}=== 1. Starting External Keycloak Identity Provider Container ===${NC}"
-if ! docker ps --filter "name=^/${KEYCLOAK_CONTAINER}$" --format '{{.Names}}' | grep -qx "${KEYCLOAK_CONTAINER}"; then
-    if docker ps -a --filter "name=^/${KEYCLOAK_CONTAINER}$" --format '{{.Names}}' | grep -qx "${KEYCLOAK_CONTAINER}"; then
-        echo "Starting existing '${KEYCLOAK_CONTAINER}' container..."
-        docker start "${KEYCLOAK_CONTAINER}"
-    else
-        echo "Launching external Keycloak container '${KEYCLOAK_CONTAINER}' on port ${KEYCLOAK_PORT}..."
-        docker run -d \
-            --name "${KEYCLOAK_CONTAINER}" \
-            --restart unless-stopped \
-            -p "${KEYCLOAK_PORT}:8080" \
-            -e KEYCLOAK_ADMIN=admin \
-            -e KEYCLOAK_ADMIN_PASSWORD=admin \
-            -e KC_HTTP_PORT=8080 \
-            -e KC_HOSTNAME="http://localhost:${KEYCLOAK_PORT}" \
-            -e KC_HOSTNAME_STRICT="false" \
-            -e KC_HOSTNAME_BACKCHANNEL_DYNAMIC="true" \
-            -e KC_HTTP_ENABLED="true" \
-            -e KC_HEALTH_ENABLED="true" \
-            -v "${ROOT_DIR}/k8s/keycloak/realm-airflow.json:/opt/keycloak/data/import/airflow-realm.json:ro" \
-            quay.io/keycloak/keycloak:26.0.0 \
-            start-dev --import-realm
-    fi
-else
-    echo "External Keycloak container '${KEYCLOAK_CONTAINER}' is already running."
-fi
-
-# Connect Keycloak container to KinD network if present
-if docker network inspect kind >/dev/null 2>&1; then
-    docker network connect kind "${KEYCLOAK_CONTAINER}" 2>/dev/null || true
-fi
-
-echo "Waiting for Keycloak to be ready at http://localhost:${KEYCLOAK_PORT}..."
-for i in {1..60}; do
-    if curl -s -f "http://localhost:${KEYCLOAK_PORT}/realms/airflow/.well-known/openid-configuration" >/dev/null 2>&1; then
-        echo -e "${GREEN}Keycloak is healthy and realm 'airflow' is ready.${NC}"
-        break
-    fi
-    sleep 2
-done
-
-echo "Ensuring Airflow client in Keycloak permits all Ingress redirect URIs..."
-python3 -c '
-import urllib.request, urllib.parse, json
-
-data = urllib.parse.urlencode({
-    "client_id": "admin-cli",
-    "username": "admin",
-    "password": "admin",
-    "grant_type": "password"
-}).encode()
-
-try:
-    req = urllib.request.Request("http://localhost:'"${KEYCLOAK_PORT}"'/realms/master/protocol/openid-connect/token", data=data)
-    res = urllib.request.urlopen(req)
-    token = json.loads(res.read())["access_token"]
-
-    req2 = urllib.request.Request("http://localhost:'"${KEYCLOAK_PORT}"'/admin/realms/airflow/clients?clientId=airflow", headers={"Authorization": f"Bearer {token}"})
-    res2 = urllib.request.urlopen(req2)
-    clients = json.loads(res2.read())
-    if clients:
-        client = clients[0]
-        client["redirectUris"] = [
-            "http://localhost:8080/*",
-            "https://localhost:8080/*",
-            "http://localhost:8080/oauth-authorized/keycloak",
-            "http://airflow.local/*",
-            "https://airflow.local/*",
-            "http://airflow.local/oauth-authorized/keycloak",
-            "https://airflow.local/oauth-authorized/keycloak",
-            "http://airflow.172.18.0.2.nip.io/*",
-            "https://airflow.172.18.0.2.nip.io/*",
-            "*"
-        ]
-        client["webOrigins"] = ["*"]
-        put_req = urllib.request.Request(
-            f"http://localhost:'"${KEYCLOAK_PORT}"'/admin/realms/airflow/clients/{client[\"id\"]}",
-            data=json.dumps(client).encode(),
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            method="PUT"
-        )
-        urllib.request.urlopen(put_req)
-except Exception:
-    pass
-' 2>/dev/null || true
-
-echo -e "${CYAN}=== 2. Mapping External Keycloak into Kubernetes ===${NC}"
-if kubectl cluster-info >/dev/null 2>&1; then
-    kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -f "${ROOT_DIR}/k8s/keycloak/service.yaml"
-    echo -e "${GREEN}Service 'keycloak' mapped in namespace '${NAMESPACE}' to external host container.${NC}"
-else
-    echo -e "${YELLOW}Kubernetes cluster not detected yet; skipping k8s service mapping.${NC}"
-fi
-
-echo -e "${GREEN}External Keycloak Identity Provider is ready!${NC}"
+python3 "${ROOT_DIR}/scripts/configure_keycloak.py"

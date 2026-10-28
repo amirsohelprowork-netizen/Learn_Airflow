@@ -1,15 +1,2 @@
-# Sample Terraform variables for Local KinD Airflow Lab
-cluster_name            = "airflow-local"
-airflow_namespace       = "airflow"
-observability_namespace = "observability"
-keda_namespace          = "keda"
-host_gateway_ip         = "172.18.0.1"
-
-# Credentials
-breakglass_password     = "ChangeMeInSecret123!"
-gmail_app_password      = ""
-alert_email             = "alerts@example.com"
-
-# Features
-deploy_addons           = true
-deploy_airflow_helm     = true
+# The local profile deliberately shares fixed names and generated credentials
+# with ./ctl start. No password or external cloud account is needed.
