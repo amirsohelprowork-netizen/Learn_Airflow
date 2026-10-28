@@ -9,6 +9,9 @@ airflowVersion: 3.3.2
 defaultAirflowRepository: registry.example.com/platform/airflow
 defaultAirflowTag: replace-with-release-tag
 images:
+  flower:
+    repository: registry.example.com/platform/airflow
+    tag: replace-with-release-tag@sha256:0000000000000000000000000000000000000000000000000000000000000000
   airflow:
     repository: registry.example.com/platform/airflow
     tag: replace-with-release-tag
@@ -230,7 +233,19 @@ data:
   resultBackendSecretName: airflow-result-backend-secret
   brokerUrlSecretName: airflow-broker-secret
 flower:
-  enabled: false
+  enabled: true
+  secretName: airflow-flower-secret
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels: {release: airflow, component: flower}
+  service:
+    type: ClusterIP
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
 databaseCleanup:
   enabled: true
   retentionDays: 90

@@ -9,7 +9,7 @@ flowchart TB
         subgraph kind["KinD / one node"]
             direction TB
             ingress["Traefik ingress<br/>namespace: ingress-system"]
-            airflow["Airflow 3.3.2<br/>namespace: airflow<br/>API x2 / Scheduler x2<br/>DAG processor / Triggerer<br/>Celery workers: 1 to 3"]
+            airflow["Airflow 3.3.2<br/>namespace: airflow<br/>API x2 / Scheduler x2<br/>DAG processor / Triggerer<br/>Celery workers: 1 to 3<br/>Flower: authenticated / internal"]
             monitor["Metrics and dashboards<br/>StatsD: airflow namespace<br/>Prometheus + Grafana:<br/>observability namespace"]
             keda["Worker autoscaling<br/>KEDA operator + HPA"]
         end

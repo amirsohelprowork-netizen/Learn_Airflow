@@ -14,7 +14,7 @@ if production:
     assert workers['spec']['replicas'] == 3
     assert not any(o['kind'] == 'ScaledObject' for o in objects)
     assert not any(o['kind'] in ('Deployment', 'StatefulSet') and
-                   any(name in o['metadata']['name'] for name in ('postgresql', 'redis', 'flower'))
+                   any(name in o['metadata']['name'] for name in ('postgresql', 'redis'))
                    for o in objects)
     for obj in objects:
         if obj['kind'] in ('Deployment', 'StatefulSet') and obj['metadata']['name'] != 'airflow-statsd':
@@ -33,6 +33,12 @@ else:
     assert scaler['spec']['minReplicaCount'] == 1
     assert '/ 2)' in scaler['spec']['triggers'][0]['metadata']['query']
     assert scaler['spec']['triggers'][0]['metadata']['connectionFromEnv'] == 'AIRFLOW_CONN_AIRFLOW_DB'
+flower = next(o for o in objects if o['kind'] == 'Deployment' and o['metadata']['name'] == 'airflow-flower')
+flower_container = flower['spec']['template']['spec']['containers'][0]
+auth = next(e for e in flower_container['env'] if e['name'] == 'AIRFLOW__CELERY__FLOWER_BASIC_AUTH')
+assert auth['valueFrom']['secretKeyRef'] == {'name': 'airflow-flower-secret', 'key': 'basicAuth'}
+assert next(o for o in objects if o['kind'] == 'Service' and o['metadata']['name'] == 'airflow-flower')['spec']['type'] == 'ClusterIP'
+assert not any(o['kind'] == 'Ingress' and 'flower' in o['metadata']['name'] for o in objects)
 assert not any(o['kind'] == 'Secret' and 'connection' in o.get('data', {}) for o in objects)
 for obj in objects:
     if obj['kind'] != 'Deployment' or obj['metadata']['name'] == 'airflow-statsd':

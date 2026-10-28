@@ -25,7 +25,7 @@ The production Helm chart is the **same official Apache Airflow chart, pinned to
 | Email | Mailpit replaced default Gmail delivery | Approved authenticated TLS SMTP relay, monitored delivery and real on-call routing |
 | Metrics | StatsD, Prometheus, Grafana retained | Production monitoring stack or managed equivalent; durable storage, availability alerts and Alertmanager/on-call integration |
 | Worker scaling | Local KEDA retained (1–3 workers) | Start with three fixed workers in the example; enable KEDA after verifying DB scaler TLS, permissions and queue/load behavior |
-| Flower | **Disabled**, no active Flower URL | Optional internal-only Celery debugging UI with authentication; Airflow and metrics remain available without it |
+| Flower | **Enabled**, authenticated; `./ctl ui flower` opens localhost:5555 | Enabled in the production example; keep internal-only, behind restricted admin access and authentication |
 | Packages | Nexus made **optional**; default builds use PyPI | Approved package proxy if required (Nexus or JFrog Artifactory); private image registry for runtime releases |
 | Release automation | GitHub Actions performs CI only | Build once, scan/sign and publish image, then an approved Helm or GitOps promotion; no developer workstation dependency |
 | Terraform | Local provisioner-based orchestration retained | Separate production IaC root and encrypted, access-controlled remote state for the selected infrastructure |
@@ -56,6 +56,7 @@ Create these Kubernetes Secrets in namespace `airflow` through your approved sec
 | `airflow-api-secret` | `api-secret-key` | Strong stable random API/session key shared across API replicas |
 | `airflow-fernet-secret` | `fernet-key` | Valid Fernet key; use a deliberate rotation procedure |
 | `airflow-jwt-secret` | `jwt-secret` | Strong stable random key shared by Airflow components |
+| `airflow-flower-secret` | `basicAuth` | Flower administrator `username:password`; generate independently for production |
 | `airflow-runtime-secret` | `KEYCLOAK_CLIENT_SECRET` | Production confidential OIDC client secret |
 | `airflow-prod-vault-ca` | `ca.crt` | Trusted issuing CA chain for Vault; mounted at `/opt/airflow/tls/ca.crt` |
 | `airflow-prod-tls` | `tls.crt`, `tls.key` | `kubernetes.io/tls` certificate Secret for the real Airflow hostname |
@@ -83,7 +84,7 @@ cp deploy/production/ingress.example.yaml /secure/path/airflow-ingress.yaml
 
 Replace every `example.com` hostname, `replace-with-*` value and the all-zero image digest. Match the ingress class to your controller. Keep the Helm release name and namespace `airflow` unless also updating the internal Execution API URL, network selectors and Vault service-account bindings. Configure image-pull credentials through chart `registry.secretName` if workload identity does not provide access. Adjust replica sizing, disruption budgets and topology spread to the actual infrastructure; the example spreads each component across hostnames, while zone spreading must be added for a multi-zone deployment.
 
-Build and scan using the existing Dockerfile/CI quality gates, publish to your private registry, and record the returned immutable digest in your production values. The supplied GitHub workflow does not publish images or deploy anything. All Airflow components must use the same tested image, including migrations. Do not use `kind load` or `./ctl start` for production.
+Build and scan using the existing Dockerfile/CI quality gates, publish to your private registry, and record the returned immutable digest in your production values. The supplied GitHub workflow does not publish images or deploy anything. All Airflow components must use the same tested image, including migrations and Flower. The chart uses a separate Flower image field: replace `images.flower.tag` with `your-release-tag@sha256:YOUR_DIGEST`, matching `images.airflow.digest`. Do not use `kind load` or `./ctl start` for production.
 
 ```bash
 helm pull airflow --repo https://airflow.apache.org --version 1.22.0

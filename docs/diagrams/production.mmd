@@ -7,7 +7,7 @@ flowchart TB
 
     subgraph cluster["PRODUCTION KUBERNETES"]
         ingress["Load balancer + Traefik<br/>Trusted HTTPS certificate"]
-        airflow["Airflow across multiple nodes<br/>API x2 / Scheduler x2<br/>DAG processor x2 / Triggerer x2<br/>Celery workers x3 initially"]
+        airflow["Airflow across multiple nodes<br/>API x2 / Scheduler x2<br/>DAG processor x2 / Triggerer x2<br/>Celery workers x3 initially<br/>Flower: authenticated / internal"]
         metrics["Prometheus + Grafana<br/>Alertmanager / on-call routing"]
     end
 

@@ -46,6 +46,7 @@ def cluster_secrets() -> None:
         secret('airflow-fernet-secret', 'airflow', {'fernet-key': c['AIRFLOW_FERNET_KEY']}),
         secret('airflow-jwt-secret', 'airflow', {'jwt-secret': c['AIRFLOW_JWT_SECRET']}),
         secret('airflow-runtime-secret', 'airflow', {'KEYCLOAK_CLIENT_SECRET': c['KEYCLOAK_CLIENT_SECRET']}),
+        secret('airflow-flower-secret', 'airflow', {'basicAuth': 'admin:' + c['FLOWER_PASSWORD']}),
         secret('grafana-admin-secret', 'observability', {'password': c['GRAFANA_ADMIN_PASSWORD']}),
         secret('airflow-ca', 'airflow', {'ca.crt': (LOCAL / 'tls/ca.crt').read_text()}),
         secret('airflow-local-tls', 'airflow', {'tls.crt': (LOCAL / 'tls/server.crt').read_text(),

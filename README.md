@@ -1,6 +1,6 @@
 # Local Airflow platform
 
-A completely local, production-like Apache Airflow 3.3.2 platform using Kubernetes, Celery, PostgreSQL, Redis, Keycloak with LDAP federation, Vault, MinIO, KEDA, Prometheus, Grafana, and Mailpit.
+A completely local, production-like Apache Airflow 3.3.2 platform using Kubernetes, Celery, PostgreSQL, Redis, Keycloak with LDAP federation, Vault, MinIO, KEDA, Flower, Prometheus, Grafana, and Mailpit.
 
 ```bash
 ./ctl init
@@ -9,6 +9,8 @@ A completely local, production-like Apache Airflow 3.3.2 platform using Kubernet
 ```
 
 Open **https://localhost**. Import `.local/tls/ca.crt` into your browser's trusted authorities. Alert emails stay in the [local inbox](http://localhost:8025). No cloud account, Gmail account, or remote DAG repository is required. Initial artifact downloads need internet access.
+
+Flower is enabled: run `./ctl ui flower`, open **http://localhost:5555**, and sign in with `admin` / `FLOWER_PASSWORD` from `./ctl credentials`.
 
 See [the recorded validation results](docs/VALIDATION.md).
 

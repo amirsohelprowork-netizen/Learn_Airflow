@@ -44,6 +44,19 @@ class TestLocalCredentials(unittest.TestCase):
             import base64
             self.assertEqual(len(base64.urlsafe_b64decode(first['AIRFLOW_FERNET_KEY'])), 32)
 
+    def test_adding_flower_preserves_existing_credentials(self):
+        import local_config
+        with tempfile.TemporaryDirectory() as folder:
+            local = Path(folder) / '.local'
+            with patch.object(local_config, 'LOCAL', local), patch.object(local_config, 'render_identity'):
+                original = local_config.initialize()
+                original.pop('FLOWER_PASSWORD')
+                (local / 'secrets.json').write_text(json.dumps(original))
+                updated = local_config.initialize()
+                self.assertEqual({k: v for k, v in updated.items() if k != 'FLOWER_PASSWORD'}, original)
+                self.assertTrue(updated['FLOWER_PASSWORD'])
+                self.assertEqual(updated, local_config.initialize())
+
     def test_configuration_changes_change_release_tag(self):
         from local_config import release_tag
         with tempfile.TemporaryDirectory() as folder:

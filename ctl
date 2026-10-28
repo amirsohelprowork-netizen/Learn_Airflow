@@ -27,8 +27,9 @@ case "$cmd" in
     ui)
         case "${2:-grafana}" in
             grafana) "${KUBE[@]}" port-forward --address 127.0.0.1 -n observability svc/grafana 3000:3000 ;;
+            flower) "${KUBE[@]}" port-forward --address 127.0.0.1 -n airflow svc/airflow-flower 5555:5555 ;;
             prometheus) "${KUBE[@]}" port-forward --address 127.0.0.1 -n observability svc/prometheus 9090:9090 ;;
-            *) echo 'Usage: ./ctl ui grafana|prometheus' >&2; exit 1 ;;
+            *) echo 'Usage: ./ctl ui grafana|prometheus|flower' >&2; exit 1 ;;
         esac
         ;;
     ingress|tls) "${KUBE[@]}" get ingress -n airflow; echo 'Local CA: .local/tls/ca.crt; Airflow: https://localhost' ;;
@@ -108,7 +109,7 @@ Usage: ./ctl <command>
   smoke         Verify a running installation (--run-dag for a finance workflow)
   credentials   Explicitly display local generated credentials
   status        Show local cluster and service health
-  ui <service>  Forward grafana or prometheus to a loopback port
+  ui <service>  Forward grafana, prometheus or flower to a loopback port
   autoscaler    Show KEDA and worker scaling status
   test-alert    Trigger a failure email into the local Mailpit inbox
   logs <target> Follow worker, scheduler, dag-processor, api-server, or service logs

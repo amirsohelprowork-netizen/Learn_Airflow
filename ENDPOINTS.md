@@ -11,10 +11,11 @@ Start the local stack with `./ctl start`, then retrieve your generated passwords
 | MinIO console | http://localhost:9001 | `airflow-local` / `MINIO_PASSWORD` |
 | Mailpit inbox | http://localhost:8025 | No login; locally captured email |
 | Grafana | http://localhost:3000 | First run `./ctl ui grafana`; `admin` / `GRAFANA_ADMIN_PASSWORD` |
+| Flower | http://localhost:5555 | First run `./ctl ui flower`; `admin` / `FLOWER_PASSWORD` |
 | Prometheus | http://localhost:9090 | First run `./ctl ui prometheus`; loopback port-forward, no login |
 | Nexus package proxy (optional) | http://localhost:8085 | First run `./ctl artifactory start`; `admin` / `NEXUS_ADMIN_PASSWORD` |
 
-Management listeners bind to loopback. Old `ldap.local` routes and the old Keycloak port 8081 are not the current entry points. Flower is disabled and has no active URL. Traefik has no public administration dashboard. PostgreSQL, Redis and LDAP protocol ports are private service endpoints, not browser login pages.
+Management listeners bind to loopback. Old `ldap.local` routes and the old Keycloak port 8081 are not the current entry points. Flower is enabled with basic authentication and exposed through a loopback-only port-forward. Traefik has no public administration dashboard. PostgreSQL, Redis and LDAP protocol ports are private service endpoints, not browser login pages.
 
 The local `breakglass` Airflow administrator persona authenticates through Keycloak using `AIRFLOW_ADMIN_PASSWORD`; it does not bypass an unavailable identity provider.
 

@@ -20,7 +20,7 @@ SECRET_NAMES = (
     'KEYCLOAK_DB_PASSWORD', 'REDIS_PASSWORD', 'KEYCLOAK_ADMIN_PASSWORD',
     'KEYCLOAK_CLIENT_SECRET', 'LDAP_ADMIN_PASSWORD', 'MINIO_PASSWORD',
     'NEXUS_ADMIN_PASSWORD', 'GRAFANA_ADMIN_PASSWORD', 'AIRFLOW_ADMIN_PASSWORD',
-    'AIRFLOW_API_SECRET', 'AIRFLOW_JWT_SECRET', 'ALICE_PASSWORD',
+    'AIRFLOW_API_SECRET', 'AIRFLOW_JWT_SECRET', 'ALICE_PASSWORD', 'FLOWER_PASSWORD',
     *(f'{d.upper()}_PASSWORD' for d in DEPARTMENTS),
 )
 
@@ -55,6 +55,10 @@ def _initialize() -> dict[str, str]:
     path = LOCAL / 'secrets.json'
     if path.exists():
         credentials = json.loads(path.read_text())
+        # Add the newly introduced Flower credential without rotating existing keys.
+        if 'FLOWER_PASSWORD' not in credentials:
+            credentials['FLOWER_PASSWORD'] = secrets.token_hex(24)
+            private_write(path, json.dumps(credentials, indent=2) + '\n')
         missing = set(SECRET_NAMES) | {'AIRFLOW_FERNET_KEY'}
         missing -= credentials.keys()
         if missing:

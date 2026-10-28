@@ -29,6 +29,7 @@ Import `.local/tls/ca.crt` into your browser's trusted certificate authorities b
 | MinIO console | http://localhost:9001 | `airflow-local` / `MINIO_PASSWORD` |
 | LDAP admin | http://localhost:8082 | `cn=admin,dc=example,dc=org` / `LDAP_ADMIN_PASSWORD` |
 | Grafana | `./ctl ui grafana`, then http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` |
+| Flower | `./ctl ui flower`, then http://localhost:5555 | `admin` / `FLOWER_PASSWORD` |
 | Prometheus | `./ctl ui prometheus`, then http://localhost:9090 | Loopback port-forward |
 | Nexus (optional) | `./ctl artifactory start`, then http://localhost:8085 | `admin` / `NEXUS_ADMIN_PASSWORD` |
 
@@ -70,6 +71,8 @@ Policies enforce valid department ownership, replace unauthorized DAG grants, ap
 `./ctl ci` needs host PyYAML (`python3 -m pip install PyYAML==6.0.2`) and downloads pinned charts/providers. CI installs the actual Airflow runtime and fails if it cannot import the DAGs. Do not treat host-only tests as the runtime gate.
 
 Grafana provisions scheduler heartbeat and DAG import alerts. Prometheus stores seven days of metrics on a PVC, and Grafana keeps its database on a separate PVC. Each uses a single instance with a Recreate upgrade strategy to avoid concurrent writers to local storage. Airflow logs are stored in local S3 with a 30-day lifecycle. The Helm cleanup CronJob limits metadata history. These limits should be adjusted to the workload. Delivery tests are captured in Mailpit; there is no external on-call service.
+
+Flower is enabled for Celery worker/task inspection. Use `./ctl ui flower` and sign in with `admin` / `FLOWER_PASSWORD` from `./ctl credentials`. Its Kubernetes Service is private; the port-forward binds only to 127.0.0.1.
 
 KEDA uses the chart-generated database scaler and the same concurrency value as Celery (two processes per worker). It keeps one worker and permits three. Department pools have two slots each. Size these limits using real workloads before increasing them. Multiple scheduler/API replicas share one physical machine; this setup does not provide host availability guarantees. The default KinD CNI does not enforce Kubernetes NetworkPolicy; policies are rendered for portability, not claimed as an enforced local security boundary.
 
