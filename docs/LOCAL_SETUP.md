@@ -35,6 +35,8 @@ Import `.local/tls/ca.crt` into your browser's trusted certificate authorities b
 
 Host listeners bind to loopback. PostgreSQL and Redis have no published host ports. Service bridge endpoints are derived from running Docker container IPs, not a hardcoded gateway. Internal PostgreSQL, Redis, LDAP, SMTP and S3 traffic is on the private local Docker network; it is not all encrypted. Vault and OIDC traffic use verified TLS. This deliberate local network trust assumption is not a configuration for exposing the environment on a LAN or the Internet.
 
+For PostgreSQL/Redis interactive login commands, database accounts, and the complete private endpoint list, see [all service access instructions](../ENDPOINTS.md#postgresql-interactive-login). Neither database currently has a browser dashboard installed.
+
 ## Persistent credentials and storage
 
 `.local/` is excluded from Git, Docker build contexts, and repository bundles. The directory is owner-only; generated credentials and the Vault bootstrap response are mode 0600. The server key must be readable by non-root service containers, but is protected on the host by its owner-only parent directory. Only the server certificate/key are mounted into services; the CA signing key is not mounted.
